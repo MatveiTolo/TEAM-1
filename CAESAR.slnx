@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="caesar.client/caesar.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="CAESAR.Server/CAESAR.Server.csproj" />
+</Solution>
