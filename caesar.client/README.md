@@ -1,73 +1,46 @@
-# React + TypeScript + Vite
+# CAESAR - Доска задач
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Что сделано
+- Реализована главная доска с 4 колонками: Преподготовка, Выполнение, Тестирование, Готово
+- Добавлены карточки задач с ID, названием, дедлайном и исполнителем
+- Настроена подсветка дедлайнов (красный — просрочено, жёлтый — завтра)
+- Добавлен Drag-and-Drop (перетаскивание только на соседнюю колонку)
+- Настроен прокси для связи с бэкендом
+- Добавлены мок-данные для демонстрации (не требуют бэкенда)
 
-Currently, two official plugins are available:
+## Как запустить у себя
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### 1. Клонировать репозиторий
+git clone https://github.com/MatveiTolo/TEAM-1.git
+cd TEAM-1
 
-## React Compiler
+### 2. Запустить клиент
+cd caesar.client
+npm install
+npm run dev
+Открыть в браузере: https://localhost:51203
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 3. Запустить сервер (в отдельном терминале)
+cd CAESAR.Server
+dotnet run
+Сервер запустится на http://localhost:5254
 
-## Expanding the ESLint configuration
+## Важно
+- Клиент использует мок-данные (заглушку), поэтому бэкенд пока не обязателен для отображения доски
+- Чтобы переключиться на реальный API, в файле caesar.client/src/api/apiClient.ts измените USE_MOCK = true на USE_MOCK = false
+- Сервер нужен для будущих фич (Telegram, календарь, отчеты)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Структура проекта
+caesar.client/
+├── src/
+│   ├── api/          # API-клиент и мок-данные
+│   ├── components/   # Компоненты (Board, Column, TaskCard)
+│   ├── hooks/        # useTasks — управление задачами
+│   ├── types/        # TypeScript-типы
+│   └── utils/        # Утилиты (даты)
+└── ...
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Требования
+- Node.js v18+
+- .NET SDK v8+
+- Git

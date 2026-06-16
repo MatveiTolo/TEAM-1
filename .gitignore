@@ -1,0 +1,32 @@
+# .NET
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+*.user
+*.suo
+*.userosscache
+*.vs
+.vs/
+
+# Node
+**/node_modules/
+**/npm-debug.log
+**/yarn-error.log
+**/package-lock.json
+
+# Vite
+**/dist/
+**/dist-ssr/
+**/*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local

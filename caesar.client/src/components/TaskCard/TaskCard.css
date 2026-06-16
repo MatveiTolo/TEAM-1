@@ -1,0 +1,75 @@
+.task-card {
+  background: white;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-left: 4px solid transparent;
+}
+
+.task-card:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+}
+
+.task-card--expired {
+  border-left-color: #dc3545;
+  background-color: #fff5f5;
+}
+
+.task-card--soon {
+  border-left-color: #ffc107;
+  background-color: #fffcf0;
+}
+
+.task-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.task-card__id {
+  color: #6c757d;
+  font-weight: 600;
+}
+
+.task-card__status-badge {
+  background: #e9ecef;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  color: #495057;
+  text-transform: uppercase;
+}
+
+.task-card__title {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #212529;
+  line-height: 1.4;
+}
+
+.task-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.task-card__deadline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.task-card__assignee {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
