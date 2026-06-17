@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
+import { useState } from 'react';
 import type { Task } from '../../types';
 import { STATUS_LABELS } from '../../types';
 import { getDeadlineStatus, formatDate } from '../../utils/dateHelpers';
@@ -11,9 +12,10 @@ interface TaskCardProps {
 }
 
 export const TaskCard = ({ task, onClick }: TaskCardProps) => {
+  const [isDragging, setIsDragging] = useState(false);
   const deadlineStatus = getDeadlineStatus(task.deadline);
   
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
     id: task.id,
     data: {
       task,
@@ -23,8 +25,8 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
 
   const style = {
     transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
+    opacity: isDndDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
   };
 
   const getStatusClassName = () => {
@@ -35,6 +37,22 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
     }
   };
 
+  const handleMouseDown = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = () => {
+    setIsDragging(true);
+  };
+
+  const handleClick = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      return;
+    }
+    onClick(task);
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -42,7 +60,9 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
       {...listeners}
       {...attributes}
       className={`task-card ${getStatusClassName()}`}
-      onClick={() => onClick(task)}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onClick={handleClick}
     >
       <div className="task-card__header">
         <span className="task-card__id">#{task.id}</span>

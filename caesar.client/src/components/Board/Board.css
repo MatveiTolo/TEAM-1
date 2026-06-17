@@ -86,3 +86,78 @@
   border-radius: 6px;
   cursor: pointer;
 }
+
+/* Планшеты (до 1024px) */
+@media (max-width: 1024px) {
+  .board {
+    padding: 16px;
+  }
+
+  .board__title {
+    font-size: 22px;
+  }
+
+  .board__columns {
+    gap: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 12px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .board__columns > * {
+    scroll-snap-align: start;
+  }
+}
+
+/* Телефоны (до 768px) */
+@media (max-width: 768px) {
+  .board {
+    padding: 12px;
+    height: 100vh;
+  }
+
+  .board__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .board__title {
+    font-size: 20px;
+    text-align: center;
+  }
+
+  .board__add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .board__columns {
+    gap: 10px;
+    flex: 1;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+}
+
+/* Маленькие телефоны (до 480px) */
+@media (max-width: 480px) {
+  .board {
+    padding: 8px;
+  }
+
+  .board__title {
+    font-size: 18px;
+  }
+
+  .board__add-btn {
+    font-size: 14px;
+    padding: 8px 16px;
+  }
+
+  .board__columns {
+    gap: 8px;
+  }
+}

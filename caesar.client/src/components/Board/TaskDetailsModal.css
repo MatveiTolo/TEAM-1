@@ -1,0 +1,193 @@
+.task-detail-modal {
+  max-width: 600px !important;
+}
+
+.task-detail__content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.task-detail__title {
+  margin: 0;
+  font-size: 20px;
+  color: #212529;
+}
+
+.task-detail__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.task-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.task-detail__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.task-detail__value {
+  font-size: 14px;
+  color: #212529;
+}
+
+.task-detail__status {
+  display: inline-block;
+  padding: 2px 10px;
+  background: #e9ecef;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.task-detail__deadline--expired {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.task-detail__deadline--soon {
+  color: #ffc107;
+  font-weight: 600;
+}
+
+.task-detail__description {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.task-detail__description h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #6c757d;
+}
+
+.task-detail__description p {
+  margin: 0;
+  font-size: 14px;
+  color: #212529;
+  white-space: pre-wrap;
+}
+
+.task-detail__history {
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.task-detail__history h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #6c757d;
+}
+
+.task-detail__history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.task-detail__history-item {
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.task-detail__history-item:last-child {
+  border-bottom: none;
+}
+
+.task-detail__history-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.task-detail__history-user {
+  font-weight: 600;
+  color: #212529;
+}
+
+.task-detail__history-date {
+  color: #6c757d;
+  font-size: 12px;
+}
+
+.task-detail__history-action {
+  font-size: 13px;
+  color: #495057;
+  margin-top: 2px;
+}
+
+.task-detail__loading {
+  color: #6c757d;
+  font-size: 14px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.task-detail__empty {
+  color: #6c757d;
+  font-size: 14px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.task-detail__actions {
+  margin-top: 16px;
+}
+
+/* Телефоны */
+@media (max-width: 768px) {
+  .task-detail-modal {
+    max-width: 95% !important;
+    padding: 16px;
+  }
+
+  .task-detail__title {
+    font-size: 17px;
+  }
+
+  .task-detail__meta {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .task-detail__history-list {
+    max-height: 150px;
+  }
+}
+
+/* Маленькие телефоны */
+@media (max-width: 480px) {
+  .task-detail-modal {
+    padding: 12px;
+    max-width: 100% !important;
+  }
+
+  .task-detail__title {
+    font-size: 15px;
+  }
+
+  .task-detail__description p {
+    font-size: 13px;
+  }
+
+  .task-detail__history-header {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

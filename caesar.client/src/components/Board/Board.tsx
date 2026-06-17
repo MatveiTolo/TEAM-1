@@ -6,16 +6,22 @@ import type { Task, TaskStatus } from '../../types';
 import { STATUS_ORDER } from '../../types';
 import { Column } from '../Column/Column';
 import { TaskCard } from '../TaskCard/TaskCard';
+import { CreateTaskModal } from './CreateTaskModal';
+import { TaskDetailsModal } from './TaskDetailsModal';
 import './Board.css';
 
 const COLUMNS: TaskStatus[] = ['preparation', 'execution', 'testing', 'done'];
 
 export const Board = () => {
-  const { tasks, loading, error, getTasksByStatus, moveTask } = useTasks();
+  const { tasks, loading, error, getTasksByStatus, moveTask, createTask } = useTasks();
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
   const handleTaskClick = (task: Task) => {
-    alert(`Задача #${task.id}: ${task.title}`);
+    setSelectedTask(task);
+    setIsDetailsOpen(true);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -34,14 +40,11 @@ export const Board = () => {
     const taskId = active.id as number;
     const newStatus = over.id as TaskStatus;
     
-    // Находим задачу
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    // Проверяем, изменился ли статус
     if (task.status === newStatus) return;
 
-    // Проверяем правило соседства (можно перемещать только на 1 шаг)
     const oldIndex = STATUS_ORDER[task.status];
     const newIndex = STATUS_ORDER[newStatus];
     const diff = Math.abs(oldIndex - newIndex);
@@ -51,7 +54,6 @@ export const Board = () => {
       return;
     }
 
-    // Перемещаем задачу
     moveTask(taskId, newStatus);
   };
 
@@ -78,7 +80,7 @@ export const Board = () => {
       <div className="board">
         <div className="board__header">
           <h1 className="board__title">📋 Доска задач</h1>
-          <button className="board__add-btn">
+          <button className="board__add-btn" onClick={() => setIsModalOpen(true)}>
             + Создать задачу
           </button>
         </div>
@@ -100,6 +102,21 @@ export const Board = () => {
           <TaskCard task={activeTask} onClick={handleTaskClick} />
         ) : null}
       </DragOverlay>
+
+      <CreateTaskModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onCreate={createTask}
+      />
+
+      <TaskDetailsModal
+        task={selectedTask}
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedTask(null);
+        }}
+      />
     </DndContext>
   );
 };
