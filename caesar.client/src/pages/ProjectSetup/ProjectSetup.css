@@ -1,0 +1,253 @@
+.setup-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+}
+
+.setup-card {
+  background: white;
+  padding: 40px;
+  border-radius: 20px;
+  max-width: 700px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: fadeInUp 0.5s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.setup-title {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #212529;
+}
+
+.setup-subtitle {
+  margin: 0 0 30px 0;
+  font-size: 16px;
+  color: #6c757d;
+}
+
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.setup-input {
+  padding: 12px 16px;
+  border: 2px solid #dee2e6;
+  border-radius: 10px;
+  font-size: 16px;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.setup-input:focus {
+  outline: none;
+  border-color: #0d6efd;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.theme-card {
+  padding: 16px;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.theme-card:hover {
+  border-color: #0d6efd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+}
+
+.theme-card--selected {
+  border-color: #0d6efd;
+  background: #f0f7ff;
+}
+
+.theme-card__emoji {
+  font-size: 32px;
+}
+
+.theme-card__name {
+  margin: 8px 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #212529;
+}
+
+.theme-card__description {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.theme-card__roles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.theme-card__role {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: #e9ecef;
+  border-radius: 10px;
+  color: #495057;
+}
+
+.theme-card--selected .theme-card__role {
+  background: #0d6efd;
+  color: white;
+}
+
+.setup-button {
+  padding: 14px;
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.setup-button:hover {
+  background: #0b5ed7;
+}
+
+@media (max-width: 600px) {
+  .setup-card {
+    padding: 24px;
+  }
+
+  .theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-title {
+    font-size: 22px;
+  }
+}
+
+.theme-toggle {
+  display: flex;
+  gap: 8px;
+  background: #f1f3f5;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.theme-toggle-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  color: #6c757d;
+}
+
+.theme-toggle-btn.active {
+  background: white;
+  color: #0d6efd;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.theme-toggle-btn:hover:not(.active) {
+  color: #212529;
+}
+
+.custom-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-roles__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+}
+
+.custom-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 16px;
+  background: #0d6efd;
+  color: white;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.custom-role__remove {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+}
+
+.custom-role__remove:hover {
+  color: white;
+}
+
+.custom-roles__add {
+  display: flex;
+  gap: 8px;
+}
+
+.custom-roles__add .setup-input {
+  flex: 1;
+}
+
+.add-role-btn {
+  padding: 8px 20px;
+  background: #0d6efd;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.add-role-btn:hover {
+  background: #0b5ed7;
+}
