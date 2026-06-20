@@ -4,12 +4,13 @@ import './Login.css';
 
 interface LoginProps {
   onLogin: (username: string) => void;
+  isRegistering?: boolean;
 }
 
-export const Login = ({ onLogin }: LoginProps) => {
+export const Login = ({ onLogin, isRegistering = false }: LoginProps) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [isRegisterMode, setIsRegisterMode] = useState(isRegistering);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -48,7 +49,7 @@ export const Login = ({ onLogin }: LoginProps) => {
     <div className="login-container">
       <div className="login-card">
         <div className="login-logo">🏛️ CAESAR</div>
-        <h1 className="login-title">{isRegistering ? 'Создать аккаунт' : 'Войти'}</h1>
+        <h1 className="login-title">{isRegisterMode ? 'Создать аккаунт' : 'Войти'}</h1>
         
         {error && <div className="login-error">{error}</div>}
 
@@ -80,16 +81,16 @@ export const Login = ({ onLogin }: LoginProps) => {
           </div>
 
           <button type="submit" className="login-btn" disabled={loading}>
-            {loading ? 'Загрузка...' : (isRegistering ? 'Зарегистрироваться' : 'Войти')}
+            {loading ? 'Загрузка...' : (isRegisterMode ? 'Зарегистрироваться' : 'Войти')}
           </button>
         </form>
 
         <div className="login-footer">
           <button 
             className="login-switch"
-            onClick={() => setIsRegistering(!isRegistering)}
+            onClick={() => setIsRegisterMode(!isRegisterMode)}
           >
-            {isRegistering ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
+            {isRegisterMode ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
           </button>
         </div>
 

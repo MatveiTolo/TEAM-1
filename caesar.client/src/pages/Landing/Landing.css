@@ -1,0 +1,83 @@
+.landing-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
+  padding: 20px;
+}
+
+.landing-content {
+  background: white;
+  padding: 60px 50px;
+  border-radius: 24px;
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+}
+
+.landing-title {
+  font-size: 56px;
+  margin: 0 0 12px 0;
+  color: #0d6efd;
+}
+
+.landing-subtitle {
+  font-size: 18px;
+  color: #6c757d;
+  margin-bottom: 36px;
+  line-height: 1.6;
+}
+
+.landing-buttons {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.landing-btn {
+  padding: 14px 40px;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.landing-btn.primary {
+  background: #0d6efd;
+  color: white;
+}
+.landing-btn.primary:hover {
+  background: #0b5ed7;
+  transform: translateY(-2px);
+}
+
+.landing-btn.secondary {
+  background: #f1f3f5;
+  color: #212529;
+}
+.landing-btn.secondary:hover {
+  background: #e9ecef;
+  transform: translateY(-2px);
+}
+
+.landing-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  padding-top: 24px;
+  border-top: 2px solid #e9ecef;
+}
+
+.landing-features span {
+  padding: 6px 16px;
+  background: #f1f3f5;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #495057;
+}

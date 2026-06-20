@@ -1,0 +1,56 @@
+.reports-container {
+  padding: 40px;
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reports-placeholder {
+  text-align: center;
+  max-width: 500px;
+}
+
+.reports-icon {
+  font-size: 80px;
+  margin-bottom: 16px;
+}
+
+.reports-placeholder h2 {
+  font-size: 28px;
+  color: #212529;
+  margin-bottom: 12px;
+}
+
+.reports-placeholder p {
+  font-size: 16px;
+  color: #6c757d;
+  margin-bottom: 24px;
+}
+
+.reports-mock {
+  background: #f8f9fa;
+  padding: 20px 24px;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.reports-mock-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.reports-mock-item:last-child {
+  border-bottom: none;
+}
+
+.reports-mock-item span {
+  color: #495057;
+}
+
+.reports-mock-item strong {
+  color: #212529;
+  font-size: 18px;
+}

@@ -6,13 +6,30 @@ import { Login } from './pages/Login/Login';
 import { Projects } from './pages/Projects/Projects';
 import { UserProfile } from './pages/UserProfile/UserProfile';
 import { Admin } from './pages/Admin/Admin';
+import { Landing } from './pages/Landing/Landing';
+import { Invite } from './pages/Invite/Invite';
+import { Calendar } from './pages/Calendar/Calendar';
+import { Reports } from './pages/Reports/Reports';
+import { Error } from './pages/Error/Error';
 import { useApi } from './context/ApiContext';
 
-type Screen = 'login' | 'projects' | 'setup' | 'board' | 'profile' | 'admin';
+type Screen = 
+  | 'landing'
+  | 'login'
+  | 'register'
+  | 'projects'
+  | 'setup'
+  | 'board'
+  | 'profile'
+  | 'admin'
+  | 'invite'
+  | 'calendar'
+  | 'reports'
+  | 'error';
 
 function App() {
   const api = useApi();
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('landing');
   const [currentUser, setCurrentUser] = useState<string>('');
   const [projectName, setProjectName] = useState('');
   const [projectTheme, setProjectTheme] = useState('');
@@ -34,13 +51,83 @@ function App() {
 
   const handleLogout = () => {
     setCurrentUser('');
-    setCurrentScreen('login');
+    setCurrentScreen('landing');
   };
 
-  if (currentScreen === 'login') {
-    return <Login onLogin={handleLogin} />;
+  const handleNavigate = (page: string) => {
+    setCurrentScreen(page as Screen);
+  };
+
+  // ========== Лендинг ==========
+  if (currentScreen === 'landing') {
+    return <Landing onNavigate={handleNavigate} />;
   }
 
+  // ========== Вход ==========
+  if (currentScreen === 'login' || currentScreen === 'register') {
+    return <Login onLogin={handleLogin} isRegistering={currentScreen === 'register'} />;
+  }
+
+  // ========== Приглашение ==========
+  if (currentScreen === 'invite') {
+    return (
+      <Invite 
+        onAccept={() => {
+          alert('✅ Приглашение принято!');
+          setCurrentScreen('projects');
+        }}
+        onReject={() => {
+          alert('❌ Приглашение отклонено');
+          setCurrentScreen('projects');
+        }}
+      />
+    );
+  }
+
+  // ========== Календарь ==========
+  if (currentScreen === 'calendar') {
+    return (
+      <div className="app">
+        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        <div className="app-topbar">
+          <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
+          <span className="app-topbar__user">📅 Календарь</span>
+          <div className="app-topbar__actions">
+            <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
+            <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
+            <button onClick={handleLogout}>🚪 Выйти</button>
+          </div>
+        </div>
+        <Calendar />
+      </div>
+    );
+  }
+
+  // ========== Отчёты ==========
+  if (currentScreen === 'reports') {
+    return (
+      <div className="app">
+        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        <div className="app-topbar">
+          <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
+          <span className="app-topbar__user">📊 Отчёты</span>
+          <div className="app-topbar__actions">
+            <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
+            <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
+            <button onClick={handleLogout}>🚪 Выйти</button>
+          </div>
+        </div>
+        <Reports />
+      </div>
+    );
+  }
+
+  // ========== Ошибка ==========
+  if (currentScreen === 'error') {
+    return <Error code={404} onGoHome={() => setCurrentScreen('projects')} />;
+  }
+
+  // ========== Проекты ==========
   if (currentScreen === 'projects') {
     return (
       <div className="app">
@@ -48,6 +135,8 @@ function App() {
         <div className="app-topbar">
           <span className="app-topbar__user">👤 {currentUser}</span>
           <div className="app-topbar__actions">
+            <button onClick={() => setCurrentScreen('calendar')}>📅 Календарь</button>
+            <button onClick={() => setCurrentScreen('reports')}>📊 Отчёты</button>
             <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
             <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
             <button onClick={handleLogout}>🚪 Выйти</button>
@@ -58,6 +147,7 @@ function App() {
     );
   }
 
+  // ========== Создание проекта ==========
   if (currentScreen === 'setup') {
     return (
       <div className="app">
@@ -67,6 +157,7 @@ function App() {
     );
   }
 
+  // ========== Доска ==========
   if (currentScreen === 'board') {
     return (
       <div className="app">
@@ -76,6 +167,8 @@ function App() {
           <span className="app-topbar__project">📋 {projectName || 'Проект'}</span>
           <span className="app-topbar__theme">{projectTheme}</span>
           <div className="app-topbar__actions">
+            <button onClick={() => setCurrentScreen('calendar')}>📅 Календарь</button>
+            <button onClick={() => setCurrentScreen('reports')}>📊 Отчёты</button>
             <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
             <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
             <button onClick={handleLogout}>🚪 Выйти</button>
@@ -86,6 +179,7 @@ function App() {
     );
   }
 
+  // ========== Профиль ==========
   if (currentScreen === 'profile') {
     return (
       <div className="app">
@@ -106,6 +200,7 @@ function App() {
     );
   }
 
+  // ========== Админка ==========
   if (currentScreen === 'admin') {
     return (
       <div className="app">
