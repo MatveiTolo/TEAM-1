@@ -5,3 +5,7 @@ Content-Type: application/json
 {
   "name": "Тест"
 }
+
+### Получение списка всех проектов у пользователя
+GET {{hostname}}/api/projects
+Accept: application/json

@@ -2,6 +2,7 @@
 using CAESAR.Server.DTOs;
 using CAESAR.Server.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CAESAR.Server.Controllers
 {
@@ -53,6 +54,21 @@ namespace CAESAR.Server.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(newProject);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetUserProjects()
+        {
+            var projects = await _context.Members
+                .Where(x => x.UserId == 1)
+                .Select(x => new
+                {
+                    Id = x.ProjectId,
+                    Name = x.Project!.Name,
+                    Role = x.Role
+                }).ToListAsync();
+
+            return Ok(projects);
         }
     }
 }
