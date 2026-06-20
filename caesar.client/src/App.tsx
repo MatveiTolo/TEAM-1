@@ -89,6 +89,28 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        {/* Подсказка для команды */}
+        {api.isMockMode && (
+          <div style={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            background: '#212529',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 9999,
+            opacity: 0.8,
+            maxWidth: 260,
+            textAlign: 'center'
+          }}>
+            🧪 МОК-РЕЖИМ<br/>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              Страницы с 🧪 — заглушки
+            </span>
+          </div>
+        )}
         <div className="app-topbar">
           <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
           <span className="app-topbar__user">📅 Календарь</span>
@@ -108,6 +130,27 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        {api.isMockMode && (
+          <div style={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            background: '#212529',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 9999,
+            opacity: 0.8,
+            maxWidth: 260,
+            textAlign: 'center'
+          }}>
+            🧪 МОК-РЕЖИМ<br/>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              Страницы с 🧪 — заглушки
+            </span>
+          </div>
+        )}
         <div className="app-topbar">
           <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
           <span className="app-topbar__user">📊 Отчёты</span>
@@ -132,6 +175,27 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        {api.isMockMode && (
+          <div style={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            background: '#212529',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 9999,
+            opacity: 0.8,
+            maxWidth: 260,
+            textAlign: 'center'
+          }}>
+            🧪 МОК-РЕЖИМ<br/>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              Страницы с 🧪 — заглушки
+            </span>
+          </div>
+        )}
         <div className="app-topbar">
           <span className="app-topbar__user">👤 {currentUser}</span>
           <div className="app-topbar__actions">
@@ -152,6 +216,27 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        {api.isMockMode && (
+          <div style={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            background: '#212529',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 9999,
+            opacity: 0.8,
+            maxWidth: 260,
+            textAlign: 'center'
+          }}>
+            🧪 МОК-РЕЖИМ<br/>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              Страницы с 🧪 — заглушки
+            </span>
+          </div>
+        )}
         <ProjectSetup onProjectCreated={handleProjectCreated} />
       </div>
     );
@@ -162,6 +247,27 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        {api.isMockMode && (
+          <div style={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            background: '#212529',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 9999,
+            opacity: 0.8,
+            maxWidth: 260,
+            textAlign: 'center'
+          }}>
+            🧪 МОК-РЕЖИМ<br/>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              Страницы с 🧪 — заглушки
+            </span>
+          </div>
+        )}
         <div className="app-topbar">
           <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
           <span className="app-topbar__project">📋 {projectName || 'Проект'}</span>
@@ -184,6 +290,27 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        {api.isMockMode && (
+          <div style={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            background: '#212529',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 9999,
+            opacity: 0.8,
+            maxWidth: 260,
+            textAlign: 'center'
+          }}>
+            🧪 МОК-РЕЖИМ<br/>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              Страницы с 🧪 — заглушки
+            </span>
+          </div>
+        )}
         <UserProfile 
           user={{
             id: 1,
@@ -205,6 +332,27 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
+        {api.isMockMode && (
+          <div style={{
+            position: 'fixed',
+            bottom: 80,
+            right: 16,
+            background: '#212529',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: 8,
+            fontSize: 12,
+            zIndex: 9999,
+            opacity: 0.8,
+            maxWidth: 260,
+            textAlign: 'center'
+          }}>
+            🧪 МОК-РЕЖИМ<br/>
+            <span style={{ fontSize: 10, opacity: 0.7 }}>
+              Страницы с 🧪 — заглушки
+            </span>
+          </div>
+        )}
         <Admin onBack={() => setCurrentScreen('projects')} />
       </div>
     );

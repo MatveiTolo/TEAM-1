@@ -3,23 +3,19 @@ import './Reports.css';
 export const Reports = () => {
   return (
     <div className="reports-container">
-      <div className="reports-placeholder">
-        <div className="reports-icon">📊</div>
-        <h2>Ежедневные отчёты</h2>
-        <p>Скоро здесь будут отчёты по задачам, которые приходят в Telegram каждое утро.</p>
-        <div className="reports-mock">
-          <div className="reports-mock-item">
-            <span>📌 Создано задач:</span>
-            <strong>12</strong>
-          </div>
-          <div className="reports-mock-item">
-            <span>✅ Закрыто задач:</span>
-            <strong>8</strong>
-          </div>
-          <div className="reports-mock-item">
-            <span>⚠️ Просрочено:</span>
-            <strong>3</strong>
-          </div>
+      <div className="placeholder">
+        <div className="placeholder__icon">📊</div>
+        <h2 className="placeholder__title">Ежедневные отчёты</h2>
+        <p className="placeholder__desc">
+          Здесь будут отчёты по задачам, которые приходят в Telegram каждое утро.
+          <br />
+          <span style={{ color: '#adb5bd', fontSize: '13px' }}>
+            Пока что это заглушка — скоро появится реальная статистика!
+          </span>
+        </p>
+        <div className="placeholder__badge">🧪 ЗАГЛУШКА</div>
+        <div style={{ marginTop: 20, fontSize: 13, color: '#6c757d' }}>
+          📌 Для разработчиков: страница <code style={{ background: '#f1f3f5', padding: '2px 8px', borderRadius: 4 }}>/reports</code>
         </div>
       </div>
     </div>
