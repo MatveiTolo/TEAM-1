@@ -4,4 +4,7 @@
     <Deploy />
   </Project>
   <Project Path="CAESAR.Server/CAESAR.Server.csproj" />
+  <Project Path="docker-compose.dcproj">
+    <Build />
+  </Project>
 </Solution>

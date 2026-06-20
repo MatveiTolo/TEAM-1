@@ -1,0 +1,7 @@
+@hostname=https://localhost:7217
+
+POST {{hostname}}/api/projects
+Content-Type: application/json
+{
+  "name": "Тест"
+}
