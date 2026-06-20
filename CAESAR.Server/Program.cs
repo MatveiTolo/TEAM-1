@@ -6,7 +6,7 @@ namespace CAESAR.Server
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -38,6 +38,23 @@ namespace CAESAR.Server
 
             app.MapFallbackToFile("/index.html");
 
+            // Автоматическое накладывание новых миграций при запуске.
+
+            using (var scope = app.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+
+                try
+                {
+                    var context = services.GetRequiredService<AppDbContext>();
+                    await context.Database.MigrateAsync();
+                }
+                catch (Exception ex)
+                {
+                    var logger = services.GetRequiredService<ILogger<Program>>();
+                    logger.LogError(ex, "Ошибка при автоматическом применении миграций");
+                }
+            }
             app.Run();
         }
     }
