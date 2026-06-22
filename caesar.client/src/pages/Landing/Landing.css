@@ -1,83 +1,379 @@
-.landing-container {
+/* ============================================================
+   LANDING.CSS — финальная версия (без белых полей и лишней прокрутки)
+   ============================================================ */
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: #8A9A8E;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  background: #8A9A8E;
+}
+
+/* ---------- ОБЩИЕ ---------- */
+.landing-page {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #8A9A8E;
+  color: white;
+  overflow-x: hidden;
   min-height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
-  padding: 20px;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
 }
 
-.landing-content {
-  background: white;
-  padding: 60px 50px;
-  border-radius: 24px;
-  max-width: 600px;
-  width: 100%;
-  text-align: center;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
-}
-
-.landing-title {
-  font-size: 56px;
-  margin: 0 0 12px 0;
-  color: #0d6efd;
-}
-
-.landing-subtitle {
-  font-size: 18px;
-  color: #6c757d;
-  margin-bottom: 36px;
-  line-height: 1.6;
-}
-
-.landing-buttons {
+/* ---------- НАВИГАЦИЯ ---------- */
+.landing-nav {
   display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-bottom: 40px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 32px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 999;
+  min-height: 72px;
 }
 
-.landing-btn {
-  padding: 14px 40px;
-  border: none;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.landing-btn.primary {
-  background: #0d6efd;
+.landing-nav__logo-img { height: 42px; width: auto; display: block; }
+.landing-nav__links { display: none; gap: 12px; }
+.landing-nav__link {
+  padding: 8px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
   color: white;
+  cursor: pointer;
+  transition: all 0.25s;
 }
-.landing-btn.primary:hover {
-  background: #0b5ed7;
-  transform: translateY(-2px);
+.landing-nav__link:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-1px); }
+.landing-nav__actions { display: flex; align-items: center; gap: 16px; }
+.landing-nav__user { display: none; font-size: 14px; color: rgba(255,255,255,0.85); }
+.landing-nav__btn {
+  padding: 8px 20px;
+  background: white;
+  color: #1f2937;
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s;
+  white-space: nowrap;
+}
+.landing-nav__btn:hover { background: #f1f3f5; transform: scale(1.02); }
+
+@media (min-width: 768px) {
+  .landing-nav__links { display: flex; }
+  .landing-nav__user { display: inline; }
 }
 
-.landing-btn.secondary {
-  background: #f1f3f5;
-  color: #212529;
+/* ---------- ГЕРОЙ ---------- */
+.landing-hero {
+  position: relative;
+  min-height: 70vh;
+  margin-top: 72px;
+  margin-bottom: 0;
+  background: linear-gradient(rgba(0,0,0,0.30), rgba(0,0,0,0.48)),
+    url('/attachments/Серые колонны.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  display: flex;
+  align-items: center;
 }
-.landing-btn.secondary:hover {
-  background: #e9ecef;
-  transform: translateY(-2px);
+@media (max-width: 1024px) {
+  .landing-hero { background-attachment: scroll; min-height: 50vh; }
 }
 
-.landing-features {
+.landing-hero__content { max-width: 1280px; margin: 0 auto; padding: 48px 32px; width: 100%; position: relative; z-index: 10; }
+.landing-hero__title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 300;
+  letter-spacing: 3px;
+  font-size: 56px;
+  text-align: center;
+}
+@media (min-width: 640px) { .landing-hero__title { font-size: 72px; } }
+@media (min-width: 768px) { .landing-hero__title { font-size: 108px; } }
+
+.landing-hero__overlay {
+  position: absolute;
+  bottom: 0; left: 0; width: 100%; height: 120px;
+  background: linear-gradient(to bottom, transparent 0%, rgba(138,154,142,0.15) 30%, rgba(138,154,142,0.6) 60%, #8A9A8E 90%);
+  backdrop-filter: blur(1px);
+  z-index: 5;
+  pointer-events: none;
+}
+@media (min-width: 640px) { .landing-hero__overlay { height: 220px; } }
+@media (min-width: 1024px) { .landing-hero__overlay { height: 280px; } }
+
+/* ---------- ОСНОВНОЙ КОНТЕНТ ---------- */
+.landing-main { background: #8A9A8E; padding-bottom: 0; flex: 1; }
+.landing-main__inner { max-width: 1280px; margin: 0 auto; padding: 32px 32px 0; }
+
+/* ---------- СТАТУИ ---------- */
+.landing-cards {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
   justify-content: center;
-  padding-top: 24px;
-  border-top: 2px solid #e9ecef;
+  gap: 24px 32px;
+  max-width: 1200px;
+  margin: 0 auto 48px;
+  padding-top: 16px;
+  overflow: visible;
+}
+@media (min-width: 1024px) {
+  .landing-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px 10px; }
 }
 
-.landing-features span {
-  padding: 6px 16px;
-  background: #f1f3f5;
-  border-radius: 20px;
-  font-size: 14px;
-  color: #495057;
+.landing-card-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 42%;
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  z-index: 2;
+  overflow: visible;
+  padding: 12px 0;
+}
+@media (min-width: 640px) { .landing-card-group { width: 28%; } }
+@media (min-width: 1024px) { .landing-card-group { width: 100%; } }
+.landing-card-group:hover { transform: scale(1.03); }
+
+.landing-card-group__statue {
+  width: 100px; height: 200px;
+  margin-top: -40px; margin-bottom: -20px;
+  filter: drop-shadow(0 20px 25px rgba(0,0,0,0.35));
+  transition: transform 0.3s, filter 0.3s;
+  position: relative; z-index: 20;
+  object-fit: contain; pointer-events: none;
+  overflow: visible;
+}
+@media (min-width: 768px) {
+  .landing-card-group__statue { width: 138px; height: 260px; margin-top: -60px; margin-bottom: -30px; }
+}
+.landing-card-group:hover .landing-card-group__statue {
+  transform: scale(1.10) translateY(-6px);
+  filter: drop-shadow(0 40px 50px rgba(0,0,0,0.55));
+}
+
+.landing-card-group__container {
+  position: relative;
+  width: 90px; height: 130px;
+  margin-top: -10px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  transition: transform 0.3s;
+  z-index: 10;
+  overflow: visible;
+}
+@media (min-width: 768px) {
+  .landing-card-group__container { width: 112px; height: 160px; margin-top: -10px; }
+}
+.landing-card-group:hover .landing-card-group__container { transform: scale(1.06); }
+
+.landing-card-group__card-bg {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  object-fit: contain; z-index: 1;
+}
+.landing-card-group__line {
+  position: absolute; top: 28px; left: 50%; transform: translateX(-50%);
+  width: 50px; height: 4px; border-radius: 3px; z-index: 10;
+}
+@media (min-width: 768px) {
+  .landing-card-group__line { width: 68px; height: 6px; }
+}
+.landing-card-group__bottom {
+  position: absolute; bottom: 0; left: 0; width: 100%; height: 100%;
+  display: flex; justify-content: center; align-items: flex-end;
+  z-index: 10; pointer-events: none;
+}
+.landing-card-group__icon { width: 28px; height: 28px; flex-shrink: 0; }
+@media (min-width: 768px) { .landing-card-group__icon { width: 36px; height: 36px; } }
+.landing-card-group__short-line { width: 18px; height: 4px; border-radius: 3px; flex-shrink: 0; }
+@media (min-width: 768px) { .landing-card-group__short-line { width: 22px; height: 5px; } }
+
+/* Универсальные отступы */
+.landing-card-group__container .landing-card-group__icon { margin-left: -6px; }
+.landing-card-group__container--red .landing-card-group__icon { margin-bottom: 14px; }
+.landing-card-group__container--red .landing-card-group__short-line { margin-left: 18px; margin-bottom: 17px; }
+.landing-card-group__container--yellow .landing-card-group__icon { margin-bottom: 28px; }
+.landing-card-group__container--yellow .landing-card-group__short-line { margin-left: 10px; margin-bottom: 29px; }
+.landing-card-group__container--green .landing-card-group__icon { margin-left: -4px; margin-bottom: 14px; }
+.landing-card-group__container--green .landing-card-group__short-line { margin-left: 18px; margin-bottom: 16px; }
+.landing-card-group__container--blue .landing-card-group__icon { margin-bottom: 26px; }
+.landing-card-group__container--blue .landing-card-group__short-line { margin-left: 18px; margin-bottom: 27px; }
+.landing-card-group__container--purple .landing-card-group__icon { margin-bottom: 26px; }
+.landing-card-group__container--purple .landing-card-group__short-line { margin-left: 18px; margin-bottom: 27px; }
+
+@media (min-width: 768px) {
+  .landing-card-group__container--red .landing-card-group__icon { margin-bottom: 20px; }
+  .landing-card-group__container--red .landing-card-group__short-line { margin-bottom: 23px; }
+  .landing-card-group__container--yellow .landing-card-group__icon { margin-bottom: 40px; }
+  .landing-card-group__container--yellow .landing-card-group__short-line { margin-bottom: 41px; }
+  .landing-card-group__container--green .landing-card-group__icon { margin-bottom: 22px; }
+  .landing-card-group__container--green .landing-card-group__short-line { margin-bottom: 24px; }
+  .landing-card-group__container--blue .landing-card-group__icon { margin-bottom: 38px; }
+  .landing-card-group__container--blue .landing-card-group__short-line { margin-bottom: 39px; }
+  .landing-card-group__container--purple .landing-card-group__icon { margin-bottom: 38px; }
+  .landing-card-group__container--purple .landing-card-group__short-line { margin-bottom: 39px; }
+}
+
+/* ---------- КНОПКА ---------- */
+.landing-action { display: flex; justify-content: center; margin-bottom: 24px; }
+@media (min-width: 1024px) { .landing-action { justify-content: flex-end; margin-bottom: 48px; } }
+.landing-action__btn {
+  padding: 12px 32px; background: white; color: #1f2937; border: none;
+  border-radius: 999px; font-size: 18px; font-weight: 600;
+  box-shadow: 0 20px 40px -12px rgba(0,0,0,0.3);
+  cursor: pointer; transition: all 0.25s;
+}
+.landing-action__btn:hover { transform: scale(1.05); box-shadow: 0 24px 48px -12px rgba(0,0,0,0.4); }
+@media (min-width: 1024px) { .landing-action__btn { padding: 16px 40px; font-size: 20px; } }
+
+/* ---------- ПОЛЕ ДЛЯ ОБЩЕНИЯ ---------- */
+.landing-chat {
+  background: linear-gradient(to bottom right, #ffffff, #f8fafc);
+  border-radius: 48px;
+  max-width: 672px; margin: 0 auto; height: 220px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 20px;
+  box-shadow: 0 24px 48px -12px rgba(0,0,0,0.25);
+  transition: transform 0.3s, box-shadow 0.3s;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.landing-chat:hover { transform: scale(1.01); box-shadow: 0 28px 56px -12px rgba(0,0,0,0.35); }
+@media (min-width: 1024px) { .landing-chat { height: 280px; } }
+.landing-chat__title { font-size: 22px; font-weight: 600; color: #1f2937; margin-bottom: 8px; }
+@media (min-width: 1024px) { .landing-chat__title { font-size: 28px; } }
+.landing-chat__hint { font-size: 15px; color: #6b7280; }
+@media (min-width: 1024px) { .landing-chat__hint { font-size: 17px; } }
+
+/* ---------- НИЖНИЕ СЕКЦИИ ---------- */
+.landing-sections { background: #8A9A8E; padding-top: 60px; }
+.landing-sections__inner { max-width: 1280px; margin: 0 auto; padding: 60px 32px 40px; display: flex; flex-direction: column; gap: 80px; }
+
+/* ---------- ПРЕИМУЩЕСТВА ---------- */
+.landing-features { display: grid; grid-template-columns: 1fr; gap: 28px; }
+@media (min-width: 768px) { .landing-features { grid-template-columns: repeat(3, 1fr); } }
+.landing-features__card {
+  background: rgba(255,255,255,0.96); border-radius: 32px; padding: 32px 28px;
+  box-shadow: 0 12px 30px -12px rgba(0,0,0,0.12);
+  border: 1px solid rgba(255,255,255,0.5);
+  color: #1f2937; transition: all 0.3s;
+}
+.landing-features__card:hover { transform: translateY(-6px); box-shadow: 0 24px 48px -12px rgba(0,0,0,0.2); }
+.landing-features__icon { font-size: 36px; color: #8A9A8E; margin-bottom: 16px; }
+.landing-features__title { font-size: 20px; font-weight: 700; color: #1f2937; margin-bottom: 8px; }
+.landing-features__desc { color: #4b5563; font-size: 14px; line-height: 1.6; }
+
+/* ---------- ОКНО С КОДОМ ---------- */
+.landing-code {
+  background: rgba(255,255,255,0.96); border-radius: 32px; padding: 32px 28px;
+  box-shadow: 0 12px 30px -12px rgba(0,0,0,0.12);
+  border: 1px solid rgba(255,255,255,0.5);
+  display: flex; flex-direction: column; gap: 40px; transition: all 0.3s;
+}
+.landing-code:hover { transform: translateY(-4px); box-shadow: 0 24px 48px -12px rgba(0,0,0,0.2); }
+@media (min-width: 768px) { .landing-code { flex-direction: row; padding: 40px 44px; } }
+.landing-code__left { flex: 1; }
+.landing-code__title { font-size: 28px; font-weight: 600; color: #1f2937; margin-bottom: 12px; letter-spacing: -0.5px; }
+@media (min-width: 768px) { .landing-code__title { font-size: 34px; } }
+.landing-code__desc { color: #4b5563; font-size: 16px; margin-bottom: 20px; line-height: 1.6; }
+@media (min-width: 768px) { .landing-code__desc { font-size: 17px; } }
+.landing-code__list { list-style: none; padding: 0; color: #374151; display: flex; flex-direction: column; gap: 6px; }
+.landing-code__list li { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 15px; }
+.landing-code__list li:last-child { border-bottom: none; }
+.landing-code__check { color: #22c55e; font-size: 18px; }
+.landing-code__right { flex: 1; width: 100%; }
+.landing-code__window {
+  background: #1e1e1e; border-radius: 16px; padding: 40px 20px 20px;
+  color: #d4d4d4; font-family: 'Courier New', monospace; font-size: 12px;
+  position: relative; overflow: auto;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.landing-code__window::before {
+  content: '⬤ ⬤ ⬤';
+  position: absolute; top: 12px; left: 16px;
+  color: #555; font-size: 12px; letter-spacing: 6px;
+}
+@media (min-width: 768px) { .landing-code__window { font-size: 13px; padding: 40px 24px 24px; } }
+.landing-code__window pre { margin: 0; white-space: pre-wrap; line-height: 1.8; }
+.landing-code__keyword { color: #60a5fa; }
+.landing-code__function { color: #fcd34d; }
+.landing-code__result { color: #60a5fa; }
+.landing-code__string { color: #fb923c; }
+.landing-code__shifted { color: #60a5fa; }
+.landing-code__number { color: #fb923c; }
+
+/* ---------- ДЛЯ КОМАНД ---------- */
+.landing-team {
+  background: #77887b; border-radius: 48px; padding: 40px 24px;
+  box-shadow: 0 20px 40px -12px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+@media (min-width: 768px) { .landing-team { padding: 48px 40px; } }
+.landing-team__header { text-align: center; margin-bottom: 40px; }
+.landing-team__title {
+  font-family: 'Playfair Display', serif; font-weight: 300;
+  font-size: 28px; color: white; margin-bottom: 8px;
+}
+@media (min-width: 768px) { .landing-team__title { font-size: 44px; } }
+.landing-team__subtitle { color: rgba(255,255,255,0.8); font-size: 15px; max-width: 600px; margin: 0 auto; }
+@media (min-width: 768px) { .landing-team__subtitle { font-size: 17px; } }
+.landing-team__grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+@media (min-width: 768px) { .landing-team__grid { grid-template-columns: repeat(3, 1fr); } }
+.landing-team__card {
+  background: rgba(255,255,255,0.08); backdrop-filter: blur(4px);
+  border-radius: 20px; padding: 24px 16px; text-align: center;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.3s;
+}
+.landing-team__card:hover { background: rgba(255,255,255,0.18); transform: translateY(-3px); }
+.landing-team__number { font-size: 38px; font-weight: 700; color: white; margin-bottom: 6px; }
+@media (min-width: 768px) { .landing-team__number { font-size: 48px; } }
+.landing-team__card-title { font-size: 17px; font-weight: 700; color: white; }
+@media (min-width: 768px) { .landing-team__card-title { font-size: 20px; } }
+
+/* ---------- ПОДВАЛ ---------- */
+.landing-footer {
+  background: #77887b;
+  padding: 24px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 0;
+}
+.landing-footer__inner { max-width: 1280px; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; gap: 12px; color: rgba(255,255,255,0.6); font-size: 13px; }
+@media (min-width: 768px) { .landing-footer__inner { flex-direction: row; } }
+.landing-footer__links { display: flex; gap: 20px; }
+.landing-footer__link { color: rgba(255,255,255,0.6); text-decoration: none; transition: color 0.25s; }
+.landing-footer__link:hover { color: white; }
+
+/* ---------- ВТОРИЧНАЯ КНОПКА В НАВБАРЕ ---------- */
+.landing-nav__btn--secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.landing-nav__btn--secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.02);
 }

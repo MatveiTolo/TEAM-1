@@ -3,6 +3,7 @@ import './App.css';
 import { Board } from './components/Board/Board';
 import { ProjectSetup } from './pages/ProjectSetup/ProjectSetup';
 import { Login } from './pages/Login/Login';
+import { Register } from './pages/Register/Register';
 import { Projects } from './pages/Projects/Projects';
 import { UserProfile } from './pages/UserProfile/UserProfile';
 import { Admin } from './pages/Admin/Admin';
@@ -64,9 +65,20 @@ function App() {
   }
 
   // ========== Вход ==========
-  if (currentScreen === 'login' || currentScreen === 'register') {
-    return <Login onLogin={handleLogin} isRegistering={currentScreen === 'register'} />;
+  if (currentScreen === 'login') {
+    return <Login onLogin={handleLogin} onNavigate={handleNavigate} />;
   }
+
+// ========== Регистрация ==========
+if (currentScreen === 'register') {
+  return (
+    <Register 
+      onRegister={handleLogin} 
+      onBack={() => setCurrentScreen('login')}
+      onNavigate={handleNavigate}
+    />
+  );
+}
 
   // ========== Приглашение ==========
   if (currentScreen === 'invite') {
@@ -89,7 +101,6 @@ function App() {
     return (
       <div className="app">
         {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {/* Подсказка для команды */}
         {api.isMockMode && (
           <div style={{
             position: 'fixed',
