@@ -21,13 +21,3 @@ Content-Type: application/json
 ### Получение всех страниц проекта
 GET {{hostname}}/api/projectpages/project/4
 Accept: application/json
-
-### Создание новой задачи
-POST {{hostname}}/api/tasks
-Content-Type: application/json
-{
-  "projectPageId": 2,
-  "title": "Тестовая задача",
-  "description": "Описание тестовой задачи",
-  "deadline": "2024-06-30T12:00:00Z"
-}

@@ -113,6 +113,50 @@ namespace CAESAR.Server.Controllers
                 }
             }
 
+            int oldPos = task.Position;
+
+            if (task.Status != dto.targetTaskStatus)
+            {
+                // Перемещение задачи в другой статус
+
+                var tasksToMoveUp = await _context.BoardTasks
+                    .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > oldPos)
+                    .ToListAsync();
+                foreach (var t in tasksToMoveUp) t.Position--;
+
+                var tasksToMoveDown = await _context.BoardTasks
+                    .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == dto.targetTaskStatus && t.Position >= dto.NewPosition)
+                    .ToListAsync();
+                foreach (var t in tasksToMoveDown) t.Position++;
+
+                task.Status = dto.targetTaskStatus;
+
+            }
+            else
+            {
+                // Перемещение задачи в пределах одного статуса
+
+                if (oldPos < dto.NewPosition)
+                {
+                    var tasksBetween = await _context.BoardTasks
+                        .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > oldPos && t.Position <= dto.NewPosition)
+                        .ToListAsync();
+                    foreach (var t in tasksBetween) t.Position--;
+                }
+                else
+                {
+                    var tasksBetween = await _context.BoardTasks
+                        .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position < oldPos && t.Position >= dto.NewPosition)
+                        .ToListAsync();
+                    foreach (var t in tasksBetween) t.Position++;
+                }
+            }
+
+            task.Position = dto.NewPosition;
+            task.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
             return Ok(task);
         }
 

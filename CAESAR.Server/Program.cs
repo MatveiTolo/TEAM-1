@@ -1,6 +1,6 @@
-
 using CAESAR.Server.Data;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 namespace CAESAR.Server
 {
@@ -27,6 +27,8 @@ namespace CAESAR.Server
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
+
+                app.MapScalarApiReference();
             }
 
             app.UseHttpsRedirection();
