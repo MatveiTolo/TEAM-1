@@ -6,8 +6,8 @@
         public int TaskId { get; set; }
         public int UserId { get; set; }
         public string ActionType { get; set; } = string.Empty;
-        public TaskStatus StatusBefore { get; set; }
-        public TaskStatus StatusAfter { get; set; }
+        public BoardTaskStatus StatusBefore { get; set; }
+        public BoardTaskStatus StatusAfter { get; set; }
         public string Details { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

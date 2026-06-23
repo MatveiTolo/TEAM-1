@@ -1,6 +1,6 @@
 ﻿namespace CAESAR.Server.Models
 {
-    public enum TaskStatus
+    public enum BoardTaskStatus
     {
         Preparaion = 1,
         Execution = 2,

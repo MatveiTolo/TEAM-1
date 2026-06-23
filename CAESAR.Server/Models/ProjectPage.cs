@@ -1,4 +1,6 @@
-﻿namespace CAESAR.Server.Models
+﻿using System.Text.Json.Serialization;
+
+namespace CAESAR.Server.Models
 {
     public class ProjectPage
     {
@@ -7,6 +9,7 @@
         public string Name { get; set; } = string.Empty;
 
         // Entity Framework
+        [JsonIgnore]
         public Project? Project { get; set; }
     }
 }

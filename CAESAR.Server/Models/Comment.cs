@@ -1,4 +1,6 @@
-﻿namespace CAESAR.Server.Models
+﻿using System.Text.Json.Serialization;
+
+namespace CAESAR.Server.Models
 {
     public class Comment
     {
@@ -9,7 +11,9 @@
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Entity Framework
+        [JsonIgnore]
         public User? User { get; set; }
+        [JsonIgnore]
         public BoardTask? Boardtask { get; set; }
 
     }
