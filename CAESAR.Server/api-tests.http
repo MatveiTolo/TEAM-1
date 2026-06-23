@@ -9,3 +9,15 @@ Content-Type: application/json
 ### Получение списка всех проектов у пользователя
 GET {{hostname}}/api/projects
 Accept: application/json
+
+### Созданние новой страницы в проекте
+POST {{hostname}}/api/projectpages
+Content-Type: application/json
+{
+  "projectId": 4,
+  "name": "Команда FrontEnd"
+}
+
+### Получение всех страниц проекта
+GET {{hostname}}/api/projectpages/project/4
+Accept: application/json

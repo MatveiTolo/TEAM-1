@@ -1,4 +1,6 @@
-﻿namespace CAESAR.Server.Models
+﻿using System.Text.Json.Serialization;
+
+namespace CAESAR.Server.Models
 {
     public class UserNotification
     {
@@ -8,6 +10,7 @@
         public string ProviderUserId { get; set; } = string.Empty;
 
         // Entity Framework
+        [JsonIgnore]
         public User? User { get; set; }
     }
 }
