@@ -1,6 +1,9 @@
 using CAESAR.Server.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using System.Text;
 
 namespace CAESAR.Server
 {
@@ -10,13 +13,38 @@ namespace CAESAR.Server
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+            var secretKey = jwtSettings["Secret"];
+            var issuer = jwtSettings["Issuer"];
+            var audience = jwtSettings["Audience"];
             // Add services to the container.
 
             builder.Services.AddControllers();
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            }).AddJwtBearer(options =>
+            {
+                // Задаем строгие правила валидации токена
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = false, // Проверять, кто выпустил токен
+                    ValidateAudience = false, // Проверять, для кого выпущен
+                    ValidateLifetime = true, // Проверять, не истек ли срок годности
+                    ValidateIssuerSigningKey = true, // Проверять цифровую подпись ключа
+
+                    ValidIssuer = issuer,
+                    ValidAudience = audience,
+                    // Превращаем наш секретный ключ в криптографический объект подписи
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey!)),
+
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
 
             var app = builder.Build();
 
@@ -33,6 +61,7 @@ namespace CAESAR.Server
 
             app.UseHttpsRedirection();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
 

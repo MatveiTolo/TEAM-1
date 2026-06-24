@@ -1,4 +1,6 @@
-﻿using CAESAR.Server.Data;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using CAESAR.Server.Data;
 using CAESAR.Server.DTOs;
 using CAESAR.Server.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +10,7 @@ namespace CAESAR.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TasksController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -20,7 +23,10 @@ namespace CAESAR.Server.Controllers
         [HttpGet("page/{pageId}")]
         public async Task<IActionResult> GetTasksByPage(int pageId)
         {
-            int currentUserId = 1; // TODO: Получать ID текущего пользователя из контекста аутентификации
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+            int currentUserId = int.Parse(userIdClaim);
 
             var page = await _context.ProjectPages.FindAsync(pageId);
 
@@ -41,7 +47,10 @@ namespace CAESAR.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateTask(CreateTaskDto dto)
         {
-            int currentUserId = 1; // TODO: Получать ID текущего пользователя из контекста аутентификации
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+            int currentUserId = int.Parse(userIdClaim);
 
             if (string.IsNullOrEmpty(dto.Title)) return BadRequest("Название задачи не может быть пустым");
 
@@ -81,7 +90,10 @@ namespace CAESAR.Server.Controllers
         [HttpPut("{id}/move")]
         public async Task<IActionResult> MoveTask(int id, MoveTaskDto dto)
         {
-            int currentUserId = 1; // TODO: Получать ID текущего пользователя из контекста аутентификации
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+            int currentUserId = int.Parse(userIdClaim);
 
             var task = await _context.BoardTasks.FindAsync(id);
 
@@ -114,6 +126,7 @@ namespace CAESAR.Server.Controllers
             }
 
             int oldPos = task.Position;
+            var oldStatus = task.Status;
 
             if (task.Status != dto.targetTaskStatus)
             {
@@ -155,10 +168,151 @@ namespace CAESAR.Server.Controllers
             task.Position = dto.NewPosition;
             task.UpdatedAt = DateTime.UtcNow;
 
+            // Запись истории изменений
+
+            if (oldPos != dto.NewPosition || oldStatus != dto.targetTaskStatus)
+            {
+                var history = new BoardTaskHistory
+                {
+                    TaskId = task.Id,
+                    UserId = currentUserId,
+                    ActionType = "Перемещена",
+                    StatusBefore = oldStatus,
+                    StatusAfter = dto.targetTaskStatus,
+                    Details = oldStatus != dto.targetTaskStatus
+                        ? $"Перенесена из колонки '{GetStatusName(oldStatus)}' в '{GetStatusName(dto.targetTaskStatus)}' на позицию {dto.NewPosition}."
+                        : $"Перемещена внутри колонки '{GetStatusName(task.Status)}' с позиции {oldPos} на {dto.NewPosition}.",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.TaskHistories.Add(history);
+            }
+
             await _context.SaveChangesAsync();
 
             return Ok(task);
         }
 
+        [HttpGet("{id}/history")]
+        public async Task<IActionResult> GetTaskHistory(int id)
+        {
+            var taskExist = await _context.BoardTasks.AnyAsync(t => t.Id == id);
+            if (!taskExist) return NotFound("Задача не найдена");
+
+            var history = await _context.TaskHistories
+                .Include(h => h.User)
+                .Where(h => h.TaskId == id)
+                .OrderByDescending(h => h.CreatedAt)
+                .Select(h => new TaskHistoryDto
+                {
+                    Id = h.Id,
+                    Username = h.User != null ? h.User.UserName : "Система",
+                    ActionType = h.ActionType,
+                    StatusBeforeName = GetStatusName(h.StatusBefore),
+                    StatusAfterName = GetStatusName(h.StatusAfter),
+                    Details = h.Details,
+                    CreatedAt = h.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(history);
+        }
+
+        [HttpPost("{id}/comments")]
+        public async Task<IActionResult> AddComment(int id, CreateCommentDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+            int currentUserId = int.Parse(userIdClaim);
+
+            if (string.IsNullOrWhiteSpace(dto.Text)) return BadRequest("Текст комментария не может быть пустым");
+
+            var task = await _context.BoardTasks.FindAsync(id);
+            if (task == null) return NotFound("Задача не найдена");
+
+            var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+            var member = await _context.Members
+                .FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
+
+            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
+            if (member.Role == (int)UserRole.Viewer) return StatusCode(403, "Наблюдатели не могут оставлять комментарии");
+
+            var nextComment = new Comment
+            {
+                TaskId = task.Id,
+                UserId = currentUserId,
+                Text = dto.Text,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Comments.Add(nextComment);
+
+            var history = new BoardTaskHistory
+            {
+                TaskId = task.Id,
+                UserId = currentUserId,
+                ActionType = "Комментарий",
+                StatusBefore = task.Status, // Статус не менялся пишем текущий
+                StatusAfter = task.Status,
+                Details = "Добавлен новый комментарий к задаче.",
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.TaskHistories.Add(history);
+
+            await _context.SaveChangesAsync();
+
+            var user = await _context.Users.FindAsync(currentUserId);
+
+            var responeDto = new CommentDto
+            {
+                Id = nextComment.Id,
+                TaskId = nextComment.TaskId,
+                Username = user?.UserName ?? "Пользователь",
+                Text = nextComment.Text,
+                CreatedAt = nextComment.CreatedAt
+            };
+
+            return Ok(responeDto);
+        }
+
+        [HttpGet("{id}/comments")]
+        public async Task<IActionResult> GetTaskComments(int id)
+        {
+            var taskExists = await _context.BoardTasks.AnyAsync(t => t.Id == id);
+            if (!taskExists)
+            {
+                return NotFound("Задача не найдена.");
+            }
+
+            var comments = await _context.Comments
+                .Include(c => c.User)
+                .Where(c => c.TaskId == id)
+                .OrderBy(c => c.CreatedAt) // Старые комментарии показываем сверху | новые внизу (как в чате)
+                .Select(c => new CommentDto
+                {
+                    Id = c.Id,
+                    TaskId = c.TaskId,
+                    Username = c.User != null ? c.User.UserName : "Пользователь",
+                    Text = c.Text,
+                    CreatedAt = c.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(comments);
+        }
+
+
+        // Может привести к утечке памяти? уточнить.
+        private static string GetStatusName(BoardTaskStatus status)
+        {
+            return status switch
+            {
+                BoardTaskStatus.Preparaion => "Преподготовка",
+                BoardTaskStatus.Execution => "Выполнение",
+                BoardTaskStatus.Testing => "Тестирование",
+                BoardTaskStatus.Done => "Готово",
+                _ => "Неизвестно"
+            };
+        }
     }
 }

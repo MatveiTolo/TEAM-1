@@ -1,6 +1,6 @@
 ﻿namespace CAESAR.Server.Models
 {
-    public class TaskHistory
+    public class BoardTaskHistory
     {
         public int Id { get; set; }
         public int TaskId { get; set; }

@@ -15,7 +15,7 @@ namespace CAESAR.Server.Data
         public DbSet<BoardTask> BoardTasks { get; set; } = null!;
         public DbSet<Member> Members { get; set; } = null!;
         public DbSet<Comment> Comments { get; set; } = null!;
-        public DbSet<TaskHistory> TaskHistories { get; set; } = null!;
+        public DbSet<BoardTaskHistory> TaskHistories { get; set; } = null!;
         public DbSet<UserNotification> UserNotifications { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
