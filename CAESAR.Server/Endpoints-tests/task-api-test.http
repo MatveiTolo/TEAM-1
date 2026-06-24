@@ -1,0 +1,32 @@
+@hostname=https://localhost:7217
+### Перемещение задачи по статусам и позиции
+PUT {{hostname}}/api/tasks/1/move
+Content-Type: application/json
+{
+  "targetTaskStatus": 2,
+  "NewPosition": 1
+}
+### Создание новой задачи
+POST {{hostname}}/api/tasks
+Content-Type: application/json
+{
+  "projectPageId": 2,
+  "title": "Тестовая задача",
+  "description": "Описание тестовой задачи",
+  "deadline": "2024-06-30T12:00:00Z"
+}
+### Получить лог аудит-истории для карточки
+GET {{hostname}}/api/tasks/1/history
+Accept: application/json
+
+### Добавить комментарий к задаче 1
+POST {{hostname}}/api/tasks/1/comments
+Content-Type: application/json
+
+{
+  "text": "Проверил логи бэкенда"
+}
+
+### Получить все комментарии к задаче 1
+GET {{hostname}}/api/tasks/1/comments
+Accept: application/json

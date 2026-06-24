@@ -1,0 +1,40 @@
+@hostname = https://localhost:7217
+###
+POST {{hostname}}/api/auth/register
+Content-Type: application/json
+{
+  "Username": "happinaith",
+  "Email": "testuser@example.com",
+  "Password": "TestPassword123!"
+}
+###
+@name loginRequest
+POST {{hostname}}/api/auth/login
+Content-Type: application/json
+{
+  "Email": "testuser@example.com",
+  "Password": "TestPassword123!"
+}
+###
+POST {{hostname}}/api/auth/login
+Content-Type: application/json
+{
+  "Email": "testuser@example.com",
+  "Password": "TestPassword12!"
+}
+###
+@authToken = {{loginRequest.response.body.$.Token}}
+
+### Создать новый проект (Токен подставляется автоматически!)
+POST {{hostname}}/api/projects
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "name": "Империя CAESAR (MVP)"
+}
+
+### 5. Получить список моих проектов
+GET {{hostname}}/api/projects
+Accept: application/json
+Authorization: Bearer {{authToken}}
