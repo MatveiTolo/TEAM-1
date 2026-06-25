@@ -1,15 +1,17 @@
 import './Landing.css';
+import { GlassCard3D } from '../../components/GlassCard3D/GlassCard3D';
+import { ThreeDCard } from '../../components/GlassCard3D/ThreeDCard';
 
 interface LandingProps {
   onNavigate: (page: string) => void;
 }
 
 const CARDS = [
-  { color: 'red', statue: 'Красный Ц.png', card: 'Красная карточка.png', line: 'Красная чёрточка.png', icon: 'Иконка DB.png' },
-  { color: 'yellow', statue: 'Жёлтый Ц.png', card: 'Жёлтая карточка.png', line: 'Жёлтая чёрточка.png', icon: 'Иконка WiFi.png' },
-  { color: 'green', statue: 'Зелёный Ц.png', card: 'Зелёная карточка.png', line: 'Зелёная чёрточка.png', icon: 'Иконка Знаки.png' },
-  { color: 'blue', statue: 'Лазурный Ц.png', card: 'Лазурная карточка.png', line: 'Лазурная чёрточка.png', icon: 'Иконка Чип.png' },
-  { color: 'purple', statue: 'Фиолетовый Ц.png', card: 'Фиолетовая карточка.png', line: 'Фиолетовая чёрточка.png', icon: 'Иконка бесконечность.png' },
+  { id: 'red', combo: 'combo-red.png', colorClass: 'tail--red' },
+  { id: 'yellow', combo: 'combo-yellow.png', colorClass: 'tail--yellow' },
+  { id: 'green', combo: 'combo-green.png', colorClass: 'tail--green' },
+  { id: 'blue', combo: 'combo-blue.png', colorClass: 'tail--blue' },
+  { id: 'purple', combo: 'combo-purple.png', colorClass: 'tail--purple' },
 ];
 
 export const Landing = ({ onNavigate }: LandingProps) => {
@@ -48,85 +50,130 @@ export const Landing = ({ onNavigate }: LandingProps) => {
       <div className="landing-main">
         <div className="landing-main__inner">
           
-          {/* СТАТУИ И КАРТОЧКИ */}
-          <div className="landing-cards">
-            {CARDS.map((item) => (
-              <div key={item.color} className="landing-card-group">
-                <img 
-                  src={`/attachments/${item.statue}`} 
-                  alt="" 
-                  className="landing-card-group__statue" 
-                />
-                <div className={`landing-card-group__container landing-card-group__container--${item.color}`}>
-                  <img src={`/attachments/${item.card}`} alt="" className="landing-card-group__card-bg" />
-                  <img src={`/attachments/${item.line}`} alt="" className="landing-card-group__line" />
-                  <div className="landing-card-group__bottom">
-                    <img src={`/attachments/${item.icon}`} alt="" className="landing-card-group__icon" />
-                    <img src={`/attachments/${item.line}`} alt="" className="landing-card-group__short-line" />
-                  </div>
+          {/* ЦЕЗАРИ (подняты на -62px) */}
+          <div className="landing-cards-wrapper">
+            <div className="landing-cards">
+              {CARDS.map((item) => (
+                <div key={item.id} className="landing-card-group">
+                  <img 
+                    src={`/attachments/${item.combo}`} 
+                    alt="Statue" 
+                    className="landing-card-group__combo" 
+                    style={{ marginTop: '-62px' }}
+                  />
+                  <div className={`neon-tail ${item.colorClass}`}></div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* ПОЛЕ ДЛЯ ОБЩЕНИЯ */}
-          <div className="landing-chat">
-            <div>
-              <p className="landing-chat__title">Поле для общения с Caesar</p>
-              <p className="landing-chat__hint">Напишите свой запрос здесь...</p>
+              ))}
             </div>
           </div>
+
+          {/* ЕДИНАЯ НЕОНОВАЯ МАГИСТРАЛЬ */}
+          <div className="neon-stream-wrapper">
+            <div className="neon-stream">
+              <div className="neon-stream__arrow"></div>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {/* НИЖНИЕ СЕКЦИИ */}
+      {/* СЕКЦИЯ С ЧАТОМ И 3D */}
+      <div className="landing-3d-section">
+        <div className="landing-3d-section__inner">
+          
+          <div className="landing-chat-wrapper">
+            <GlassCard3D />
+          </div>
+
+          <div className="three-d-grid">
+            <ThreeDCard 
+              icon={
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                </svg>
+              }
+              title="Храним всё, что важно"
+              desc="Задачи, сроки, исполнители и история каждого изменения — в одной надёжной базе. Чтобы вы не гадали, кто и когда перенёс дедлайн."
+            />
+
+            <ThreeDCard 
+              icon={
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                  <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                  <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                  <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                </svg>
+              }
+              title="Работайте откуда угодно"
+              desc="Доска, задачи и Telegram-уведомления синхронизируются в реальном времени. Команда всегда в курсе, даже если кто-то в дороге."
+            />
+
+            <ThreeDCard 
+              icon={
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="16 18 22 12 16 6"></polyline>
+                  <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+              }
+              title="Контроль без лишних кликов"
+              desc="Цветная подсветка сроков, автоматические отчёты в Telegram и чёткая колоночная система. Всё работает само — вы просто двигаете задачи."
+            />
+          </div>
+
+        </div>
+      </div>
+
+      {/* ОСТАЛЬНЫЕ СЕКЦИИ */}
       <div className="landing-sections">
         <div className="landing-sections__inner">
           
-          {/* ПРЕИМУЩЕСТВА */}
-          <div className="landing-features">
-            {[
-              { icon: 'fa-database', title: 'База данных', desc: 'Встроенная поддержка SQL и NoSQL.' },
-              { icon: 'fa-wifi', title: 'Синхронизация', desc: 'Код и настройки всегда с вами.' },
-              { icon: 'fa-code', title: 'Умный автокод', desc: 'ИИ-ассистент ускоряет написание кода.' },
-            ].map((item, idx) => (
-              <div key={idx} className="landing-features__card">
-                <i className={`fas ${item.icon} landing-features__icon`}></i>
-                <h3 className="landing-features__title">{item.title}</h3>
-                <p className="landing-features__desc">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* ОКНО С КОДОМ */}
+          {/* ОБНОВЛЕННЫЙ БЛОК С КОДОМ (Путь пользователя) */}
           <div className="landing-code">
             <div className="landing-code__left">
-              <h2 className="landing-code__title">Ваш рабочий процесс</h2>
-              <p className="landing-code__desc">Все инструменты под рукой: от отладчика до терминала.</p>
+              <h2 className="landing-code__title">Путь к вашей первой доске</h2>
+              <p className="landing-code__desc">
+                Вам стоит только пожелать, а мы поможем с реализацией. 
+                Всего 5 простых шагов — и вы уже управляете проектами в CAESAR.
+              </p>
               <ul className="landing-code__list">
-                <li><i className="fas fa-circle-check landing-code__check"></i> Встроенный Git и CI/CD</li>
-                <li><i className="fas fa-circle-check landing-code__check"></i> Профилировщик</li>
-                <li><i className="fas fa-circle-check landing-code__check"></i> Тема "Мрамор"</li>
+                <li><i className="fas fa-circle-check landing-code__check"></i> Интуитивный интерфейс без лишних окон</li>
+                <li><i className="fas fa-circle-check landing-code__check"></i> Мгновенный переход от идеи к работе</li>
+                <li><i className="fas fa-circle-check landing-code__check"></i> Никакого программирования — только управление</li>
               </ul>
             </div>
             <div className="landing-code__right">
               <div className="landing-code__window">
                 <pre>
-                  <span className="landing-code__keyword">def</span> <span className="landing-code__function">caesar_cipher</span>(text, shift):
-                  <span className="landing-code__result">result</span> = <span className="landing-code__string">""</span>
-                  <span className="landing-code__keyword">for</span> char <span className="landing-code__keyword">in</span> text:
-                  <span className="landing-code__keyword">if</span> char.isalpha():
-                  <span className="landing-code__shifted">shifted</span> = chr((ord(char) - <span className="landing-code__number">65</span> + shift) % <span className="landing-code__number">26</span> + <span className="landing-code__number">65</span>)
-                  result += shifted
-                  <span className="landing-code__keyword">else</span>:
-                  result += char
-                  <span className="landing-code__keyword">return</span> result
+<span className="landing-code__comment"># Путь пользователя в CAESAR</span>
+
+<span className="landing-code__number">1.</span> <span className="landing-code__keyword">РЕГИСТРАЦИЯ</span>
+   → Создайте аккаунт за 30 секунд
+   → Подтвердите Email
+   → Готово к работе!
+
+<span className="landing-code__number">2.</span> <span className="landing-code__keyword">ВХОД В СИСТЕМУ</span>
+   → Введите логин и пароль
+   → (Опционально) Вход через Telegram
+   → Мгновенный доступ к личному кабинету
+
+<span className="landing-code__number">3.</span> <span className="landing-code__keyword">СПИСОК ВАШИХ ДОСОК</span>
+   → Обзор всех активных проектов
+   → Сортировка по дате, статусу, участникам
+   → <span className="landing-code__string">Нажмите на доску, чтобы открыть</span>
+
+<span className="landing-code__number">4.</span> <span className="landing-code__keyword">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
+   → Нажмите кнопку <span className="landing-code__string">«Создать проект»</span>
+   → Введите название проекта
+   → Выберите шаблон (IT / Маркетинг / Дизайн)
+   → Готово! Доска создана.
                 </pre>
               </div>
             </div>
           </div>
 
-          {/* ДЛЯ КОМАНД */}
           <div className="landing-team">
             <div className="landing-team__header">
               <h2 className="landing-team__title">Для вашей команды</h2>
@@ -145,11 +192,9 @@ export const Landing = ({ onNavigate }: LandingProps) => {
               ))}
             </div>
           </div>
-
         </div>
       </div>
 
-      {/* ПОДВАЛ */}
       <footer className="landing-footer">
         <div className="landing-footer__inner">
           <span className="landing-footer__copy">© 2026 Caesar.</span>

@@ -33,9 +33,20 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
 
     try {
       setLoading(true);
-      await api.login(username, password);
-      onRegister(username);
+      console.log('📤 Отправка регистрации:', { username, email, password: '***' });
+      
+      const result = await api.register(username, email, password);
+      console.log('✅ Результат регистрации:', result);
+
+      try {
+        await api.login(email, password);
+        onRegister(username);
+      } catch (loginErr) {
+        console.error('Ошибка входа после регистрации:', loginErr);
+        onRegister(username);
+      }
     } catch (err: any) {
+      console.error('❌ Ошибка регистрации:', err);
       setError(err.message || 'Ошибка регистрации');
     } finally {
       setLoading(false);
@@ -46,33 +57,29 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
     <div className="register-page">
       <div className="register-background"></div>
 
-      {/* ВЕРХНЯЯ ПАНЕЛЬ С КНОПКОЙ НАЗАД */}
+      {/* Топ-бар полностью идентичен лендингу */}
       <div className="register-topbar">
         <button className="register-topbar__back" onClick={() => onNavigate?.('landing')}>
-          ← Назад
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Назад</span>
         </button>
         <div className="register-topbar__logo">
           <img src="/attachments/Ориг Ц.png" alt="CAESAR" className="register-topbar__logo-img" />
         </div>
       </div>
 
-      {/* ХЕДЕР С ЛОГОТИПОМ */}
-      <header className="register-header">
-        <div className="register-header__content">
-          <img src="/attachments/Ориг Ц.png" alt="CAESAR" className="register-header__logo" />
-          <h1 className="register-header__title">Caesar</h1>
-        </div>
-      </header>
-
-      {/* ОСНОВНОЙ КОНТЕНТ */}
       <div className="register-main">
         <div className="register-grid">
           
-          {/* ЛЕВАЯ ЧАСТЬ — ФОРМА */}
           <div className="register-form-wrapper">
             <div className="register-card">
-              <h2 className="register-card__title">Регистрация</h2>
-              <p className="register-card__subtitle">Создайте доступ к Caesar</p>
+              <div className="register-card__header">
+                <h2 className="register-card__title">Регистрация</h2>
+                <p className="register-card__subtitle">Создайте доступ к Caesar</p>
+              </div>
 
               <form onSubmit={handleSubmit} className="register-form">
                 {error && <div className="register-error">{error}</div>}
@@ -109,7 +116,7 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Минимум 6 символов"
                     className="register-field__input"
                     disabled={loading}
                     required
@@ -123,7 +130,6 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
             </div>
           </div>
 
-          {/* ПРАВАЯ ЧАСТЬ — ИЗОБРАЖЕНИЕ */}
           <div className="register-image">
             <div className="register-image__wrapper">
               <img 
@@ -137,7 +143,6 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
         </div>
       </div>
 
-      {/* ССЫЛКА НА ВХОД ВНИЗУ */}
       <div className="register-footer">
         <span className="register-footer__text">Уже есть аккаунт? </span>
         <button className="register-footer__btn" onClick={onBack}>

@@ -1,3 +1,4 @@
+// src/context/ApiContext.tsx
 import { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
 import * as mockApi from '../services/mockApi';
@@ -10,6 +11,7 @@ export interface ApiService {
   getUserProfile: typeof mockApi.getUserProfile;
   getTasks: typeof mockApi.getTasks;
   login: typeof mockApi.login;
+  register: typeof mockApi.register;
   isMockMode: boolean;
 }
 

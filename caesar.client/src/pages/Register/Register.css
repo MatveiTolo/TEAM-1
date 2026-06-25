@@ -1,6 +1,8 @@
 /* ============================================================
-   REGISTER.CSS — стили для страницы регистрации
+   REGISTER.CSS — ТОЧНО КАК НА ЛЕНДИНГЕ
    ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ---------- ОБЩИЕ ---------- */
 .register-page {
@@ -9,55 +11,98 @@
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  background: #8A9A8E;
+  background: #0a0a0a;
+  font-family: 'Inter', system-ui, sans-serif;
+  padding-top: 72px; /* отступ под фиксированный топбар */
 }
 
-/* ---------- ФОН С ИЗОБРАЖЕНИЕМ ---------- */
+/* ---------- ФОН ---------- */
 .register-background {
   position: absolute;
   inset: 0;
   z-index: 0;
   background: 
-    linear-gradient(135deg, #8A9A8E 0%, #7e8e82 100%),
-    url('/attachments/Регистрация.jpg');
-  background-blend-mode: normal, soft-light;
-  background-size: cover, cover;
-  background-position: center, right center;
-  background-attachment: fixed;
+    radial-gradient(circle at 20% 30%, rgba(40, 40, 40, 0.5) 0%, transparent 55%),
+    radial-gradient(circle at 80% 70%, rgba(80, 80, 80, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 40%),
+    #0a0a0a;
+  background-size: 150% 150%;
+  animation: moveShadow 18s ease-in-out infinite alternate;
 }
 
-/* ---------- ХЕДЕР ---------- */
-.register-header {
-  position: relative;
-  z-index: 10;
-  padding: 32px 24px 16px;
+@keyframes moveShadow {
+  0% { background-position: 0% 0%; }
+  33% { background-position: 100% 100%; }
+  66% { background-position: 0% 100%; }
+  100% { background-position: 100% 0%; }
+}
+
+/* ---------- ТОП-БАР: ТОЧНО КАК В ЛЕНДИНГЕ ---------- */
+.register-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 16px 32px;
   display: flex;
-  justify-content: center;
   align-items: center;
-  animation: fadeIn 1.2s ease forwards;
-  opacity: 0;
+  justify-content: space-between;
+  z-index: 100;
+  
+  /* Параметры как у Landing Nav */
+  height: 72px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-sizing: border-box;
 }
 
-.register-header__content {
+/* Логотип выровнен так же, как в лендинге */
+.register-topbar__logo {
   display: flex;
   align-items: center;
-  gap: 12px;
-  opacity: 0.85;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
 
-.register-header__logo {
-  height: 36px;
+.register-topbar__logo-img {
+  height: 42px; /* Точно как в лендинге */
   width: auto;
+  display: block;
 }
 
-.register-header__title {
-  font-family: 'Playfair Display', serif;
-  font-weight: 300;
-  font-size: 28px;
-  color: white;
-  letter-spacing: 2px;
-  margin: 0;
+/* ---------- БЕЛАЯ КНОПКА "НАЗАД" ---------- */
+.register-topbar__back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  color: #0a0a0a;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s;
+  padding: 8px 20px;
+  border-radius: 999px;
+}
+
+.register-topbar__back:hover {
+  background: #f1f3f5;
+  transform: scale(1.02);
+}
+
+/* Убираем иконку "Назад" на мобильных, оставляем только текст для экономии места */
+@media (max-width: 480px) {
+  .register-topbar__back svg {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .register-topbar {
+    padding: 16px 48px;
+  }
 }
 
 /* ---------- ОСНОВНОЙ КОНТЕНТ ---------- */
@@ -86,7 +131,7 @@
   }
 }
 
-/* ---------- ЛЕВАЯ ЧАСТЬ — ФОРМА ---------- */
+/* ---------- СТЕКЛЯННАЯ КАРТОЧКА ---------- */
 .register-form-wrapper {
   display: flex;
   justify-content: center;
@@ -95,50 +140,46 @@
 
 .register-card {
   width: 100%;
-  max-width: 400px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-radius: 28px;
+  max-width: 420px;
+  background: rgba(15, 15, 15, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 32px;
   padding: 40px 36px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 30px 50px -20px rgba(0, 0, 0, 0.4),
-              inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.01), 0 24px 48px -12px rgba(0, 0, 0, 0.8);
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 0;
-  animation-delay: 0.1s;
+  animation-delay: 0.2s;
 }
 
 @keyframes fadeSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.register-card__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 32px;
 }
 
 .register-card__title {
-  font-size: 24px;
-  font-weight: 300;
-  color: rgba(255, 255, 255, 0.9);
-  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-weight: 400;
+  font-size: 28px;
+  color: white;
+  letter-spacing: 4px;
   margin: 0 0 4px 0;
 }
 
 .register-card__subtitle {
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.4);
-  text-align: center;
-  margin: 0 0 32px 0;
-  font-weight: 300;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0;
+  font-weight: 400;
 }
 
 /* ---------- ФОРМА ---------- */
@@ -148,10 +189,9 @@
   gap: 20px;
 }
 
-/* ---------- ОШИБКА ---------- */
 .register-error {
-  background: rgba(220, 53, 69, 0.15);
-  border: 1px solid rgba(220, 53, 69, 0.3);
+  background: rgba(220, 53, 69, 0.08);
+  border: 1px solid rgba(220, 53, 69, 0.15);
   color: #ff6b7a;
   padding: 10px 16px;
   border-radius: 12px;
@@ -159,7 +199,6 @@
   text-align: center;
 }
 
-/* ---------- ПОЛЯ ВВОДА ---------- */
 .register-field {
   display: flex;
   flex-direction: column;
@@ -167,37 +206,37 @@
 }
 
 .register-field__label {
-  font-size: 11px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.4);
   letter-spacing: 1px;
-  font-weight: 300;
+  font-weight: 500;
 }
 
 .register-field__input {
   width: 100%;
   padding: 14px 18px;
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  font-family: 'Inter', sans-serif;
   font-size: 16px;
   color: white;
   transition: all 0.3s ease;
   outline: none;
   box-sizing: border-box;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .register-field__input::placeholder {
-  color: rgba(255, 255, 255, 0.3);
-  font-weight: 300;
+  color: rgba(255, 255, 255, 0.2);
+  font-weight: 400;
 }
 
 .register-field__input:focus {
-  border-color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05),
-              inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.02);
 }
 
 .register-field__input:disabled {
@@ -208,36 +247,35 @@
 /* ---------- КНОПКА ---------- */
 .register-submit {
   width: 100%;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #2d3a33;
+  padding: 14px 20px;
+  background: white;
+  color: #0a0a0a;
   border: none;
-  border-radius: 20px;
+  border-radius: 999px;
+  font-family: 'Inter', sans-serif;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   letter-spacing: 0.5px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
   margin-top: 4px;
 }
 
 .register-submit:hover:not(:disabled) {
-  background: #ffffff;
   transform: scale(1.02) translateY(-2px);
-  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.25);
 }
 
 .register-submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
 }
 
-/* ---------- ПРАВАЯ ЧАСТЬ — ИЗОБРАЖЕНИЕ ---------- */
+/* ---------- СКУЛЬПТОР ---------- */
 .register-image {
   display: none;
-  justify-content: flex-end;
+  justify-content: center;
+  align-items: center;
   animation: fadeIn 1.2s ease forwards;
   opacity: 0;
 }
@@ -249,24 +287,25 @@
 
 .register-image__wrapper {
   width: 100%;
-  max-width: 420px;
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  max-width: 480px;
+  padding: 16px;
+  border-radius: 32px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .register-image__img {
   width: 100%;
   height: auto;
   display: block;
-  object-fit: cover;
-  object-position: center;
-  mix-blend-mode: overlay;
+  object-fit: contain;
+  filter: invert(1) drop-shadow(0 0 30px rgba(255,255,255,0.03));
   opacity: 0.8;
 }
 
-/* ---------- ССЫЛКА НА ВХОД ВНИЗУ ---------- */
+/* ---------- ФУТЕР ---------- */
 .register-footer {
   position: relative;
   z-index: 10;
@@ -278,94 +317,52 @@
 }
 
 .register-footer__text {
-  color: rgba(255, 255, 255, 0.4);
-  font-weight: 300;
+  font-family: 'Inter', sans-serif;
+  color: rgba(255, 255, 255, 0.3);
   font-size: 15px;
 }
 
 .register-footer__btn {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.7);
+  font-family: 'Inter', sans-serif;
+  color: white;
   font-weight: 500;
   font-size: 15px;
   cursor: pointer;
   transition: color 0.2s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding-bottom: 2px;
 }
 
 .register-footer__btn:hover {
-  color: white;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
-/* ---------- АНИМАЦИИ ДЛЯ ПОЛЕЙ ---------- */
-.register-form .register-field:nth-child(1) {
-  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  animation-delay: 0.2s;
-  opacity: 0;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.register-form .register-field:nth-child(2) {
+
+/* ---------- АНИМАЦИИ ПОЛЕЙ ---------- */
+.register-form .register-field:nth-child(1) {
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.3s;
   opacity: 0;
 }
-.register-form .register-field:nth-child(3) {
+.register-form .register-field:nth-child(2) {
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.4s;
   opacity: 0;
 }
-.register-submit {
+.register-form .register-field:nth-child(3) {
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.5s;
   opacity: 0;
 }
-
-/* ---------- ВЕРХНЯЯ ПАНЕЛЬ С КНОПКОЙ НАЗАД ---------- */
-.register-topbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  padding: 16px 32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  z-index: 100;
-  background: rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.register-topbar__back {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 15px;
-  cursor: pointer;
-  transition: color 0.2s;
-  padding: 8px 16px;
-  border-radius: 8px;
-}
-
-.register-topbar__back:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.register-topbar__logo-img {
-  height: 32px;
-  width: auto;
-  opacity: 0.8;
-}
-
-/* Добавляем отступ сверху для контента */
-.register-page {
-  padding-top: 72px;
-}
-
-@media (min-width: 1024px) {
-  .register-topbar {
-    padding: 16px 48px;
-  }
+.register-submit {
+  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.6s;
+  opacity: 0;
 }

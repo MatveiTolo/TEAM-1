@@ -8,7 +8,7 @@ interface LoginProps {
 }
 
 export const Login = ({ onLogin, onNavigate }: LoginProps) => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,15 +19,16 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
     e.preventDefault();
     setError('');
     
-    if (!username.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim()) {
       setError('Заполните все поля');
       return;
     }
 
     try {
       setLoading(true);
-      await api.login(username, password);
-      onLogin(username);
+      const response = await api.login(email, password);
+      console.log('✅ Вход выполнен:', response);
+      onLogin(response.username || email);
     } catch (err: any) {
       setError(err.message || 'Ошибка входа');
     } finally {
@@ -37,9 +38,11 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
 
   const quickLogin = async (username: string) => {
     try {
-      await api.login(username, 'password');
+      const email = `${username}@example.com`;
+      await api.login(email, 'Admin123!');
       onLogin(username);
-    } catch {
+    } catch (err) {
+      console.error('Ошибка быстрого входа:', err);
       onLogin(username);
     }
   };
@@ -48,10 +51,13 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
     <div className="login-page">
       <div className="login-background"></div>
 
-      {/* ВЕРХНЯЯ ПАНЕЛЬ С КНОПКОЙ НАЗАД */}
       <div className="login-topbar">
         <button className="login-topbar__back" onClick={() => onNavigate?.('landing')}>
-          ← Назад
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          <span>Назад</span>
         </button>
         <div className="login-topbar__logo">
           <img src="/attachments/Ориг Ц.png" alt="CAESAR" className="login-topbar__logo-img" />
@@ -61,7 +67,7 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
       <div className="login-container">
         <div className="login-grid">
           
-          {/* ЛЕВАЯ ЧАСТЬ — ЛОГОТИП */}
+          {/* ЛЕВАЯ ЧАСТЬ: Бренд (как в регистрации) */}
           <div className="login-brand">
             <div className="login-brand__content">
               <img src="/attachments/Ориг Ц.png" alt="CAESAR" className="login-brand__logo" />
@@ -70,13 +76,12 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
             </div>
           </div>
 
-          {/* ПРАВАЯ ЧАСТЬ — ФОРМА */}
+          {/* ПРАВАЯ ЧАСТЬ: Форма */}
           <div className="login-form-wrapper">
             
-            {/* Мобильный логотип */}
+            {/* Мобильный логотип (без дублирования текста Caesar) */}
             <div className="login-mobile-logo">
               <img src="/attachments/Ориг Ц.png" alt="CAESAR" className="login-mobile-logo__img" />
-              <h1 className="login-mobile-logo__title">Caesar</h1>
               <p className="login-mobile-logo__subtitle">Вход в виртуальную доску</p>
             </div>
 
@@ -85,11 +90,11 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
                 {error && <div className="login-error">{error}</div>}
 
                 <div className="login-field">
-                  <label className="login-field__label">Email или логин</label>
+                  <label className="login-field__label">Email</label>
                   <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="user@caesar.com"
                     className="login-field__input"
                     disabled={loading}
@@ -119,11 +124,22 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
                 <a href="#" className="login-forgot__link">Забыли пароль?</a>
               </div>
             </div>
-          </div>
 
+            {/* Быстрый вход для тестирования */}
+            <div className="login-mock">
+              <p className="login-mock__label">🧪 Быстрый вход для тестирования</p>
+              <div className="login-mock__buttons">
+                <button className="login-mock__btn" onClick={() => quickLogin('admin')}>admin</button>
+                <button className="login-mock__btn" onClick={() => quickLogin('developer')}>developer</button>
+                <button className="login-mock__btn" onClick={() => quickLogin('tester')}>tester</button>
+                <button className="login-mock__btn" onClick={() => quickLogin('viewer')}>viewer</button>
+              </div>
+            </div>
+
+          </div>
         </div>
 
-        {/* ССЫЛКА НА РЕГИСТРАЦИЮ ВНИЗУ */}
+        {/* ФУТЕР: Ссылка на регистрацию (прибита к низу) */}
         <div className="login-footer-link">
           <span className="login-footer-link__text">Нет аккаунта? </span>
           <button 
@@ -134,16 +150,6 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
           </button>
         </div>
 
-        {/* БЫСТРЫЙ ВХОД */}
-        <div className="login-mock">
-          <p className="login-mock__label">🧪 Быстрый вход (для тестирования)</p>
-          <div className="login-mock__buttons">
-            <button className="login-mock__btn" onClick={() => quickLogin('admin')}>admin</button>
-            <button className="login-mock__btn" onClick={() => quickLogin('developer')}>developer</button>
-            <button className="login-mock__btn" onClick={() => quickLogin('tester')}>tester</button>
-            <button className="login-mock__btn" onClick={() => quickLogin('viewer')}>viewer</button>
-          </div>
-        </div>
       </div>
     </div>
   );

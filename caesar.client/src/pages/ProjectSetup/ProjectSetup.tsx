@@ -38,6 +38,8 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
   const [customRoles, setCustomRoles] = useState<string[]>(['Админ', 'Разработчик', 'Тестировщик', 'Наблюдатель']);
   const [newRole, setNewRole] = useState('');
   const [isCustomMode, setIsCustomMode] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleAddRole = () => {
     if (newRole.trim() && !customRoles.includes(newRole.trim())) {
@@ -50,10 +52,14 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
     setCustomRoles(customRoles.filter(r => r !== role));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    console.log('🔵 1. handleSubmit вызван');
+
     if (!projectName.trim()) {
-      alert('Введите название проекта');
+      setError('Введите название проекта');
       return;
     }
 
@@ -69,7 +75,62 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
       roles = theme?.roles || [];
     }
 
-    onProjectCreated(projectName, themeName, roles);
+    console.log('🔵 2. Данные для отправки:', { projectName, themeName });
+
+    try {
+      setLoading(true);
+
+      const token = localStorage.getItem('caesar_token');
+      console.log('🔵 3. Токен:', token ? '✅ есть' : '❌ нет');
+
+      if (!token) {
+        throw new Error('Токен не найден. Пожалуйста, войдите заново.');
+      }
+
+      const requestBody = {
+        name: projectName.trim(),
+        theme: themeName,
+      };
+
+      console.log('🔵 4. Отправка запроса на /api/Projects:', requestBody);
+
+      const response = await fetch('/api/Projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('🔵 5. Статус ответа:', response.status, response.statusText);
+
+      const responseText = await response.text();
+      console.log('🔵 6. Тело ответа:', responseText);
+
+      if (!response.ok) {
+        throw new Error(`Ошибка ${response.status}: ${responseText}`);
+      }
+
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+        console.log('🔵 7. Ответ распарсен:', responseData);
+      } catch {
+        console.log('🔵 7. Ответ не JSON, используем как есть');
+        responseData = { success: true, message: responseText };
+      }
+
+      console.log('🔵 8. Вызов onProjectCreated');
+      onProjectCreated(projectName.trim(), themeName, roles);
+
+    } catch (err: any) {
+      console.error('🔴 ОШИБКА:', err);
+      setError(err.message || 'Произошла ошибка при создании проекта');
+    } finally {
+      setLoading(false);
+      console.log('🔵 9. Завершено');
+    }
   };
 
   return (
@@ -77,6 +138,8 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
       <div className="setup-card">
         <h1 className="setup-title">🚀 Создай свой проект</h1>
         <p className="setup-subtitle">Выбери готовую тему или создай свою!</p>
+
+        {error && <div className="setup-error">{error}</div>}
 
         <form onSubmit={handleSubmit} className="setup-form">
           <div className="form-group">
@@ -88,6 +151,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
               onChange={(e) => setProjectName(e.target.value)}
               placeholder="Например: Мой крутой проект"
               className="setup-input"
+              disabled={loading}
               required
             />
           </div>
@@ -98,6 +162,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
                 type="button"
                 className={`theme-toggle-btn ${!isCustomMode ? 'active' : ''}`}
                 onClick={() => setIsCustomMode(false)}
+                disabled={loading}
               >
                 📋 Готовые темы
               </button>
@@ -105,6 +170,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
                 type="button"
                 className={`theme-toggle-btn ${isCustomMode ? 'active' : ''}`}
                 onClick={() => setIsCustomMode(true)}
+                disabled={loading}
               >
                 ✏️ Своя тема
               </button>
@@ -119,7 +185,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
                   <div
                     key={theme.id}
                     className={`theme-card ${selectedTheme === theme.id ? 'theme-card--selected' : ''}`}
-                    onClick={() => setSelectedTheme(theme.id)}
+                    onClick={() => !loading && setSelectedTheme(theme.id)}
                   >
                     <div className="theme-card__emoji">{theme.name.split(' ')[0]}</div>
                     <h3 className="theme-card__name">{theme.name}</h3>
@@ -145,6 +211,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
                         type="button"
                         className="custom-role__remove"
                         onClick={() => handleRemoveRole(role)}
+                        disabled={loading}
                       >
                         ✕
                       </button>
@@ -158,9 +225,10 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
                     onChange={(e) => setNewRole(e.target.value)}
                     placeholder="Название роли"
                     className="setup-input"
+                    disabled={loading}
                     onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddRole())}
                   />
-                  <button type="button" onClick={handleAddRole} className="add-role-btn">
+                  <button type="button" onClick={handleAddRole} className="add-role-btn" disabled={loading}>
                     + Добавить
                   </button>
                 </div>
@@ -168,8 +236,8 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
             </div>
           )}
 
-          <button type="submit" className="setup-button">
-            Создать проект →
+          <button type="submit" className="setup-button" disabled={loading}>
+            {loading ? 'Создание...' : 'Создать проект →'}
           </button>
         </form>
       </div>

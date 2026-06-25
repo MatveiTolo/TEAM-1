@@ -1,5 +1,24 @@
-const USE_MOCK = true;
+// ============================================================
+// 1. Вход и регистрация — РЕАЛЬНЫЙ API (с сохранением токена)
+// 2. Все остальные запросы — пока МОК (заглушки)
+// ============================================================
 
+// ---- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ТОКЕНОМ ----
+const TOKEN_KEY = 'caesar_token';
+
+export const getToken = (): string | null => {
+  return localStorage.getItem(TOKEN_KEY);
+};
+
+export const setToken = (token: string): void => {
+  localStorage.setItem(TOKEN_KEY, token);
+};
+
+export const removeToken = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
+};
+
+// ---- МОК-ДАННЫЕ (для остальных запросов) ----
 export const MOCK_USERS = [
   { id: 1, username: 'admin', email: 'admin@example.com', role: 'Главный администратор', status: 'Активен' },
   { id: 2, username: 'developer', email: 'dev@example.com', role: 'Разработчик', status: 'Активен' },
@@ -29,97 +48,102 @@ export const MOCK_TASKS = [
   { id: 4, title: 'Добавить Telegram уведомления', status: 'done', deadline: null, assignee_name: 'Иван Петров' },
 ];
 
-export const getUsers = async () => {
-  if (USE_MOCK) {
-    await delay(300);
-    return MOCK_USERS;
+// ---- РЕАЛЬНЫЙ API (АУТЕНТИФИКАЦИЯ) ----
+export const login = async (email: string, password: string) => {
+  const response = await fetch('/api/Auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Ошибка входа');
   }
-  const response = await fetch('/api/users');
-  return response.json();
+
+  const data = await response.json();
+  if (data.token) {
+    setToken(data.token);
+  }
+  return data;
 };
 
-export const updateUser = async (userId: number, data: any) => {
-  if (USE_MOCK) {
-    await delay(300);
-    const user = MOCK_USERS.find(u => u.id === userId);
-    if (!user) throw new Error('Пользователь не найден');
-    Object.assign(user, data);
-    return user;
-  }
-  const response = await fetch(`/api/users/${userId}`, {
-    method: 'PUT',
+export const register = async (username: string, email: string, password: string) => {
+  const response = await fetch('/api/Auth/register', {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ username, email, password }),
   });
-  return response.json();
+
+  const text = await response.text();
+  console.log('📥 Ответ сервера (регистрация):', text);
+
+  if (response.ok) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { success: true, message: text };
+    }
+  }
+
+  try {
+    const errorJson = JSON.parse(text);
+    throw new Error(errorJson.message || errorJson.title || 'Ошибка регистрации');
+  } catch {
+    throw new Error(text || 'Ошибка регистрации');
+  }
+};
+
+// ---- МОК-ЗАГЛУШКИ (пока без реального API) ----
+export const getUsers = async () => {
+  await delay(300);
+  return MOCK_USERS;
 };
 
 export const getProjects = async () => {
-  if (USE_MOCK) {
-    await delay(300);
-    return MOCK_PROJECTS;
-  }
-  const response = await fetch('/api/projects');
-  return response.json();
+  await delay(300);
+  return MOCK_PROJECTS;
 };
 
 export const createProject = async (data: any) => {
-  if (USE_MOCK) {
-    await delay(500);
-    const newProject = {
-      id: Date.now(),
-      ...data,
-      createdAt: new Date().toLocaleDateString('ru-RU'),
-      tasksCount: 0,
-      status: 'Активен',
-    };
-    MOCK_PROJECTS.push(newProject);
-    return newProject;
-  }
-  const response = await fetch('/api/projects', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  return response.json();
+  await delay(500);
+  const newProject = {
+    id: Date.now(),
+    ...data,
+    createdAt: new Date().toLocaleDateString('ru-RU'),
+    tasksCount: 0,
+    status: 'Активен',
+  };
+  MOCK_PROJECTS.push(newProject);
+  return newProject;
 };
 
 export const getUserProfile = async (userId: number) => {
-  if (USE_MOCK) {
-    await delay(300);
-    return { ...MOCK_USER_PROFILE, id: userId };
-  }
-  const response = await fetch(`/api/users/${userId}/profile`);
-  return response.json();
+  await delay(300);
+  return { ...MOCK_USER_PROFILE, id: userId };
 };
 
-export const getTasks = async (projectId?: number) => {
-  if (USE_MOCK) {
-    await delay(400);
-    return MOCK_TASKS;
-  }
-  const url = projectId ? `/api/tasks?projectId=${projectId}` : '/api/tasks';
-  const response = await fetch(url);
-  return response.json();
+export const getTasks = async (_projectId?: number) => {
+  await delay(400);
+  return MOCK_TASKS;
 };
 
-export const login = async (username: string, password: string) => {
-  if (USE_MOCK) {
-    await delay(500);
-    const user = MOCK_USERS.find(u => u.username === username);
-    if (!user) {
-      throw new Error('Неверное имя пользователя или пароль');
-    }
-    return { user, token: 'mock-jwt-token-' + Date.now() };
-  }
-  const response = await fetch('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
-  });
-  return response.json();
+export const createTask = async (data: any) => {
+  await delay(400);
+  const newTask = { id: Date.now(), ...data };
+  MOCK_TASKS.push(newTask);
+  return newTask;
 };
 
+export const updateUser = async (userId: number, data: any) => {
+  await delay(300);
+  const user = MOCK_USERS.find(u => u.id === userId);
+  if (!user) throw new Error('Пользователь не найден');
+  Object.assign(user, data);
+  return user;
+};
+
+// ---- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const isMockMode = USE_MOCK;
+export const isMockMode = true;

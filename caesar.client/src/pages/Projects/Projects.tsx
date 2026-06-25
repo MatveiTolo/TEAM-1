@@ -14,9 +14,10 @@ interface Project {
 
 interface ProjectsProps {
   onSelectProject: (projectId: number) => void;
+  onCreateProject?: () => void; // ← добавили пропс для создания проекта
 }
 
-export const Projects = ({ onSelectProject }: ProjectsProps) => {
+export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -40,7 +41,9 @@ export const Projects = ({ onSelectProject }: ProjectsProps) => {
   };
 
   const handleCreateProject = () => {
-    window.location.href = '/setup';
+    if (onCreateProject) {
+      onCreateProject(); // ← используем пропс вместо window.location
+    }
   };
 
   if (loading) {

@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "motion": "^12.41.0",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.184.1"
+  }
+}

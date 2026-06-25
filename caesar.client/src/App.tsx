@@ -38,6 +38,7 @@ function App() {
   const handleLogin = (username: string) => {
     setCurrentUser(username);
     setCurrentScreen('projects');
+    console.log('🔑 Токен сохранён:', localStorage.getItem('caesar_token'));
   };
 
   const handleProjectCreated = (name: string, theme: string) => {
@@ -51,6 +52,7 @@ function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('caesar_token');
     setCurrentUser('');
     setCurrentScreen('landing');
   };
@@ -69,16 +71,16 @@ function App() {
     return <Login onLogin={handleLogin} onNavigate={handleNavigate} />;
   }
 
-// ========== Регистрация ==========
-if (currentScreen === 'register') {
-  return (
-    <Register 
-      onRegister={handleLogin} 
-      onBack={() => setCurrentScreen('login')}
-      onNavigate={handleNavigate}
-    />
-  );
-}
+  // ========== Регистрация ==========
+  if (currentScreen === 'register') {
+    return (
+      <Register 
+        onRegister={handleLogin} 
+        onBack={() => setCurrentScreen('login')}
+        onNavigate={handleNavigate}
+      />
+    );
+  }
 
   // ========== Приглашение ==========
   if (currentScreen === 'invite') {
@@ -217,7 +219,10 @@ if (currentScreen === 'register') {
             <button onClick={handleLogout}>🚪 Выйти</button>
           </div>
         </div>
-        <Projects onSelectProject={handleSelectProject} />
+        <Projects 
+          onSelectProject={handleSelectProject} 
+          onCreateProject={() => setCurrentScreen('setup')}
+        />
       </div>
     );
   }
