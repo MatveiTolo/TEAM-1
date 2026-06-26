@@ -1,7 +1,3 @@
-/* ============================================================
-   REGISTER.CSS — ТОЧНО КАК НА ЛЕНДИНГЕ
-   ============================================================ */
-
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 /* ---------- ОБЩИЕ ---------- */
@@ -13,7 +9,7 @@
   overflow: hidden;
   background: #0a0a0a;
   font-family: 'Inter', system-ui, sans-serif;
-  padding-top: 72px; /* отступ под фиксированный топбар */
+  padding-top: 72px;
 }
 
 /* ---------- ФОН ---------- */
@@ -37,7 +33,7 @@
   100% { background-position: 100% 0%; }
 }
 
-/* ---------- ТОП-БАР: ТОЧНО КАК В ЛЕНДИНГЕ ---------- */
+/* ---------- ТОП-БАР ---------- */
 .register-topbar {
   position: fixed;
   top: 0;
@@ -48,8 +44,6 @@
   align-items: center;
   justify-content: space-between;
   z-index: 100;
-  
-  /* Параметры как у Landing Nav */
   height: 72px;
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(16px) saturate(180%);
@@ -58,26 +52,13 @@
   box-sizing: border-box;
 }
 
-/* Логотип выровнен так же, как в лендинге */
-.register-topbar__logo {
-  display: flex;
-  align-items: center;
-}
-
-.register-topbar__logo-img {
-  height: 42px; /* Точно как в лендинге */
-  width: auto;
-  display: block;
-}
-
-/* ---------- БЕЛАЯ КНОПКА "НАЗАД" ---------- */
 .register-topbar__back {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: white;
-  color: #0a0a0a;
-  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 500;
@@ -88,21 +69,22 @@
 }
 
 .register-topbar__back:hover {
-  background: #f1f3f5;
+  background: rgba(255, 255, 255, 0.2);
   transform: scale(1.02);
 }
 
-/* Убираем иконку "Назад" на мобильных, оставляем только текст для экономии места */
 @media (max-width: 480px) {
-  .register-topbar__back svg {
-    display: none;
-  }
+  .register-topbar__back svg { display: none; }
+}
+
+.register-topbar__logo-img {
+  height: 42px;
+  width: auto;
+  display: block;
 }
 
 @media (min-width: 1024px) {
-  .register-topbar {
-    padding: 16px 48px;
-  }
+  .register-topbar { padding: 16px 48px; }
 }
 
 /* ---------- ОСНОВНОЙ КОНТЕНТ ---------- */
@@ -125,29 +107,33 @@
   width: 100%;
   margin: 0 auto;
 }
+
 @media (min-width: 1024px) {
   .register-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-/* ---------- СТЕКЛЯННАЯ КАРТОЧКА ---------- */
+/* ---------- КАРТОЧКА ФОРМЫ ---------- */
 .register-form-wrapper {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   width: 100%;
 }
 
 .register-card {
   width: 100%;
   max-width: 420px;
-  background: rgba(15, 15, 15, 0.6);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(15, 15, 15, 0.7);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
   border-radius: 32px;
   padding: 40px 36px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.01), 0 24px 48px -12px rgba(0, 0, 0, 0.8);
+  box-shadow: 
+    inset 0 0 60px rgba(255, 255, 255, 0.02),
+    0 24px 64px -12px rgba(0, 0, 0, 0.8);
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 0;
   animation-delay: 0.2s;
@@ -163,6 +149,19 @@
   flex-direction: column;
   align-items: center;
   margin-bottom: 32px;
+}
+
+.register-card__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .register-card__title {
@@ -190,10 +189,10 @@
 }
 
 .register-error {
-  background: rgba(220, 53, 69, 0.08);
-  border: 1px solid rgba(220, 53, 69, 0.15);
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.2);
   color: #ff6b7a;
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-radius: 12px;
   font-size: 14px;
   text-align: center;
@@ -202,7 +201,7 @@
 .register-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .register-field__label {
@@ -214,11 +213,30 @@
   font-weight: 500;
 }
 
+.register-field__wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.register-field__icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  transition: color 0.3s;
+}
+
+.register-field__input:focus + .register-field__icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .register-field__input {
   width: 100%;
-  padding: 14px 18px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 18px 14px 48px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   font-family: 'Inter', sans-serif;
   font-size: 16px;
@@ -235,7 +253,7 @@
 
 .register-field__input:focus {
   border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.02);
 }
 
@@ -248,7 +266,7 @@
 .register-submit {
   width: 100%;
   padding: 14px 20px;
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
   color: #0a0a0a;
   border: none;
   border-radius: 999px;
@@ -258,12 +276,14 @@
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   letter-spacing: 0.5px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
   margin-top: 4px;
+  position: relative;
 }
 
 .register-submit:hover:not(:disabled) {
   transform: scale(1.02) translateY(-2px);
+  box-shadow: 0 12px 40px rgba(255, 255, 255, 0.15);
 }
 
 .register-submit:disabled {
@@ -271,7 +291,21 @@
   cursor: not-allowed;
 }
 
-/* ---------- СКУЛЬПТОР ---------- */
+.register-submit__loader {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #0a0a0a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- ИЗОБРАЖЕНИЕ ---------- */
 .register-image {
   display: none;
   justify-content: center;
@@ -279,6 +313,7 @@
   animation: fadeIn 1.2s ease forwards;
   opacity: 0;
 }
+
 @media (min-width: 1024px) {
   .register-image {
     display: flex;
@@ -288,12 +323,30 @@
 .register-image__wrapper {
   width: 100%;
   max-width: 480px;
-  padding: 16px;
+  padding: 12px;
   border-radius: 32px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+}
+
+.register-image__glow {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 0%, transparent 70%);
+  animation: glowPulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .register-image__img {
@@ -301,8 +354,14 @@
   height: auto;
   display: block;
   object-fit: contain;
-  filter: invert(1) drop-shadow(0 0 30px rgba(255,255,255,0.03));
-  opacity: 0.8;
+  border-radius: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ---------- ФУТЕР ---------- */
@@ -330,7 +389,7 @@
   font-weight: 500;
   font-size: 15px;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: all 0.2s;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   padding-bottom: 2px;
 }
@@ -338,11 +397,7 @@
 .register-footer__btn:hover {
   color: rgba(255, 255, 255, 0.8);
   border-color: rgba(255, 255, 255, 0.5);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  transform: translateY(-1px);
 }
 
 /* ---------- АНИМАЦИИ ПОЛЕЙ ---------- */
@@ -364,5 +419,10 @@
 .register-submit {
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.6s;
+  opacity: 0;
+}
+.register-footer {
+  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.7s;
   opacity: 0;
 }

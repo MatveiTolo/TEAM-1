@@ -1,6 +1,4 @@
-/* ============================================================
-   LOGIN.CSS — СТИЛЬ КАК В РЕГИСТРАЦИИ (без дублирования лого)
-   ============================================================ */
+/* Login.css — В стиле Register, с новой картинкой ФонСвет.png справа */
 
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -16,24 +14,25 @@
   padding-top: 72px;
 }
 
-/* ---------- ФОН ---------- */
+/* ---------- ФОН (ОСТАЛСЯ ЧЁРНЫМ С АНИМАЦИЕЙ) ---------- */
 .login-background {
   position: absolute;
   inset: 0;
   z-index: 0;
   background: 
-    radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.7) 100%),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.2) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.6) 100%),
-    url('/attachments/BlackEnter.jpg');
-  background-size: cover;
-  background-position: center center;
-  background-attachment: fixed;
-  animation: breathe 6s ease-in-out infinite alternate;
+    radial-gradient(circle at 20% 30%, rgba(40, 40, 40, 0.5) 0%, transparent 55%),
+    radial-gradient(circle at 80% 70%, rgba(80, 80, 80, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 40%),
+    #0a0a0a;
+  background-size: 150% 150%;
+  animation: moveShadow 18s ease-in-out infinite alternate;
 }
 
-@keyframes breathe {
-  0% { filter: brightness(0.95) contrast(1); }
-  100% { filter: brightness(1.05) contrast(1.1); }
+@keyframes moveShadow {
+  0% { background-position: 0% 0%; }
+  33% { background-position: 100% 100%; }
+  66% { background-position: 0% 100%; }
+  100% { background-position: 100% 0%; }
 }
 
 /* ---------- ТОП-БАР ---------- */
@@ -59,9 +58,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: white;
-  color: #0a0a0a;
-  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 500;
@@ -72,7 +71,7 @@
 }
 
 .login-topbar__back:hover {
-  background: #f1f3f5;
+  background: rgba(255, 255, 255, 0.2);
   transform: scale(1.02);
 }
 
@@ -90,136 +89,98 @@
   .login-topbar { padding: 16px 48px; }
 }
 
-/* ---------- КОНТЕЙНЕР ---------- */
-.login-container {
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 16px 24px;
+/* ---------- ОСНОВНОЙ КОНТЕНТ ---------- */
+.login-main {
   position: relative;
   z-index: 10;
   flex: 1;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  padding: 16px 24px 24px;
 }
 
-/* ---------- СЕТКА ---------- */
 .login-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 48px;
   align-items: center;
+  max-width: 1200px;
   width: 100%;
+  margin: 0 auto;
 }
+
 @media (min-width: 1024px) {
   .login-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 64px;
   }
 }
 
-/* ---------- ЛЕВАЯ ЧАСТЬ ---------- */
-.login-brand {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 1.2s ease forwards;
-  opacity: 0;
-}
-@media (min-width: 1024px) { .login-brand { display: flex; } }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.login-brand__content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 10;
-}
-
-.login-brand__logo {
-  height: 96px;
-  width: auto;
-  margin-bottom: 16px;
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.3));
-}
-
-.login-brand__title {
-  font-family: 'Cinzel', serif;
-  font-weight: 400;
-  letter-spacing: 4px;
-  font-size: 72px;
-  color: white;
-  margin: 0;
-  text-shadow: 0 4px 30px rgba(0, 0, 0, 0.8);
-}
-
-.login-brand__subtitle {
-  font-family: 'Inter', sans-serif;
-  font-size: 18px;
-  margin-top: 8px;
-  opacity: 0.7;
-  color: white;
-  letter-spacing: 1px;
-}
-
-/* ---------- ПРАВАЯ ЧАСТЬ ---------- */
+/* ---------- КАРТОЧКА ФОРМЫ ---------- */
 .login-form-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 420px;
-  margin: 0 auto;
 }
-@media (min-width: 1024px) { .login-form-wrapper { margin: 0; } }
 
-/* ---------- МОБИЛЬНЫЙ ЛОГОТИП ---------- */
-.login-mobile-logo {
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(15, 15, 15, 0.7);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-radius: 32px;
+  padding: 40px 36px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    inset 0 0 60px rgba(255, 255, 255, 0.02),
+    0 24px 64px -12px rgba(0, 0, 0, 0.8);
+  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  animation-delay: 0.2s;
+}
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.login-card__header {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-bottom: 32px;
 }
-@media (min-width: 1024px) { .login-mobile-logo { display: none; } }
 
-.login-mobile-logo__img {
-  height: 48px;
-  width: auto;
-  margin-bottom: 12px;
-}
-
-.login-mobile-logo__subtitle {
-  font-family: 'Inter', sans-serif;
-  font-size: 16px;
-  margin-top: 4px;
-  opacity: 0.6;
+.login-card__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* ---------- КАРТОЧКА ФОРМЫ ---------- */
-.login-card {
-  background: rgba(15, 15, 15, 0.6);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 32px;
-  padding: 32px 40px;
-  width: 100%;
-  box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.01), 0 24px 48px -12px rgba(0, 0, 0, 0.8);
-  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  opacity: 0;
+.login-card__title {
+  font-family: 'Cinzel', serif;
+  font-weight: 400;
+  font-size: 28px;
+  color: white;
+  letter-spacing: 4px;
+  margin: 0 0 4px 0;
 }
-@media (min-width: 768px) { .login-card { padding: 40px 48px; } }
 
-@keyframes fadeSlideUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
+.login-card__subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.3);
+  margin: 0;
+  font-weight: 400;
 }
 
 /* ---------- ФОРМА ---------- */
@@ -230,8 +191,8 @@
 }
 
 .login-error {
-  background: rgba(220, 53, 69, 0.08);
-  border: 1px solid rgba(220, 53, 69, 0.15);
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.2);
   color: #ff6b7a;
   padding: 12px 16px;
   border-radius: 12px;
@@ -242,7 +203,7 @@
 .login-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .login-field__label {
@@ -254,36 +215,60 @@
   font-weight: 500;
 }
 
+.login-field__wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.login-field__icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  transition: color 0.3s;
+}
+
+.login-field__input:focus + .login-field__icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .login-field__input {
   width: 100%;
-  padding: 14px 18px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 18px 14px 48px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   font-family: 'Inter', sans-serif;
   font-size: 16px;
   color: white;
-  font-weight: 500;
   transition: all 0.3s ease;
   outline: none;
   box-sizing: border-box;
 }
 
-.login-field__input::placeholder { color: rgba(255, 255, 255, 0.2); font-weight: 400; }
+.login-field__input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+  font-weight: 400;
+}
 
 .login-field__input:focus {
   border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.02);
 }
 
-.login-field__input:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-field__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 /* ---------- КНОПКА ---------- */
 .login-submit {
   width: 100%;
   padding: 14px 20px;
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
   color: #0a0a0a;
   border: none;
   border-radius: 999px;
@@ -292,58 +277,81 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  margin-top: 8px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+  margin-top: 4px;
+  position: relative;
 }
 
 .login-submit:hover:not(:disabled) {
   transform: scale(1.02) translateY(-2px);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 40px rgba(255, 255, 255, 0.15);
 }
 
-.login-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
-/* ---------- ЗАБЫЛИ ПАРОЛЬ? ---------- */
+.login-submit__loader {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-top-color: #0a0a0a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- ЗАБЫЛИ ПАРОЛЬ ---------- */
 .login-forgot {
   text-align: center;
   margin-top: 20px;
 }
 
 .login-forgot__link {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.3);
   font-size: 14px;
   text-decoration: none;
   transition: color 0.2s;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 2px;
 }
 
-.login-forgot__link:hover { color: white; }
+.login-forgot__link:hover {
+  color: white;
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+}
 
 /* ---------- БЫСТРЫЙ ВХОД ---------- */
 .login-mock {
-  margin-top: 20px;
+  margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   text-align: center;
   width: 100%;
   max-width: 420px;
 }
-@media (min-width: 1024px) { .login-mock { margin-left: auto; margin-right: 0; } }
 
 .login-mock__label {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.3);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .login-mock__buttons {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .login-mock__btn {
-  padding: 4px 14px;
+  padding: 6px 16px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
@@ -353,43 +361,124 @@
   transition: all 0.2s;
 }
 
-.login-mock__btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+.login-mock__btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transform: translateY(-1px);
+}
 
-/* ---------- ФУТЕР С РЕГИСТРАЦИЕЙ ---------- */
-.login-footer-link {
+/* ---------- ИЗОБРАЖЕНИЕ СПРАВА (УМЕНЬШЕННАЯ РАМКА) ---------- */
+.login-image {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 1.2s ease forwards;
+  opacity: 0;
+}
+
+@media (min-width: 1024px) {
+  .login-image {
+    display: flex;
+  }
+}
+
+/* ===== УМЕНЬШИЛИ РАМКУ И УБРАЛИ ЛИШНИЙ ВОЗДУХ ===== */
+.login-image__wrapper {
+  width: 100%;
+  max-width: 400px; /* БЫЛО 480px — уменьшили рамку */
+  padding: 8px; /* БЫЛО 16px — уменьшили отступ внутри рамки */
+  border-radius: 24px; /* Чуть меньше скругление под размер рамки */
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-image__glow {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 0%, transparent 70%);
+  animation: glowPulse 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ===== УМЕНЬШИЛИ САМУ КАРТИНКУ ===== */
+.login-image__img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  border-radius: 16px; /* Уменьшили скругление самой картинки */
+  position: relative;
+  z-index: 1;
+  transform: scale(0.88); /* БЫЛО 0.92 — уменьшили ещё сильнее (на 12%) */
+  transition: transform 0.3s ease;
+}
+
+.login-image__img:hover {
+  transform: scale(0.90);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- ФУТЕР ---------- */
+.login-footer {
+  position: relative;
+  z-index: 10;
   text-align: center;
-  padding-top: 32px;
-  padding-bottom: 24px;
-  color: rgba(255, 255, 255, 0.4);
+  padding: 24px 16px 32px;
+  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  animation-delay: 0.5s;
+}
+
+.login-footer__text {
+  font-family: 'Inter', sans-serif;
+  color: rgba(255, 255, 255, 0.3);
   font-size: 15px;
 }
 
-.login-footer-link__btn {
+.login-footer__btn {
   background: none;
   border: none;
+  font-family: 'Inter', sans-serif;
   color: white;
   font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.2s;
   font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   padding-bottom: 2px;
 }
 
-.login-footer-link__btn:hover {
-  opacity: 0.8;
+.login-footer__btn:hover {
+  color: rgba(255, 255, 255, 0.8);
   border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
 }
 
-/* ---------- АНИМАЦИИ ---------- */
-.login-form .login-field:first-child {
-  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  animation-delay: 0.15s;
-  opacity: 0;
-}
-.login-form .login-field:last-child {
+/* ---------- АНИМАЦИИ ПОЛЕЙ ---------- */
+.login-form .login-field:nth-child(1) {
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.3s;
+  opacity: 0;
+}
+.login-form .login-field:nth-child(2) {
+  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.4s;
   opacity: 0;
 }
 .login-submit {
@@ -400,5 +489,10 @@
 .login-forgot {
   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   animation-delay: 0.6s;
+  opacity: 0;
+}
+.login-footer {
+  animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.7s;
   opacity: 0;
 }

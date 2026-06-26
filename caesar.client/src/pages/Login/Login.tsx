@@ -1,3 +1,4 @@
+// Login.tsx
 import { useState } from 'react';
 import { useApi } from '../../context/ApiContext';
 import './Login.css';
@@ -64,59 +65,74 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
         </div>
       </div>
 
-      <div className="login-container">
+      <div className="login-main">
         <div className="login-grid">
           
-          {/* ЛЕВАЯ ЧАСТЬ: Бренд (как в регистрации) */}
-          <div className="login-brand">
-            <div className="login-brand__content">
-              <img src="/attachments/Ориг Ц.png" alt="CAESAR" className="login-brand__logo" />
-              <h1 className="login-brand__title">Caesar</h1>
-              <p className="login-brand__subtitle">Ваше виртуальное пространство</p>
-            </div>
-          </div>
-
-          {/* ПРАВАЯ ЧАСТЬ: Форма */}
           <div className="login-form-wrapper">
-            
-            {/* Мобильный логотип (без дублирования текста Caesar) */}
-            <div className="login-mobile-logo">
-              <img src="/attachments/Ориг Ц.png" alt="CAESAR" className="login-mobile-logo__img" />
-              <p className="login-mobile-logo__subtitle">Вход в виртуальную доску</p>
-            </div>
-
             <div className="login-card">
+              <div className="login-card__header">
+                <div className="login-card__icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                    <polyline points="10 17 15 12 10 7" />
+                    <line x1="15" y1="12" x2="3" y2="12" />
+                  </svg>
+                </div>
+                <h2 className="login-card__title">Вход</h2>
+                <p className="login-card__subtitle">Добро пожаловать обратно в Caesar</p>
+              </div>
+
               <form onSubmit={handleSubmit} className="login-form">
                 {error && <div className="login-error">{error}</div>}
 
                 <div className="login-field">
-                  <label className="login-field__label">Email</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="user@caesar.com"
-                    className="login-field__input"
-                    disabled={loading}
-                    required
-                  />
+                  <label className="login-field__label">Электронная почта</label>
+                  <div className="login-field__wrapper">
+                    <span className="login-field__icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                      </svg>
+                    </span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="user@caesar.com"
+                      className="login-field__input"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="login-field">
                   <label className="login-field__label">Пароль</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="login-field__input"
-                    disabled={loading}
-                    required
-                  />
+                  <div className="login-field__wrapper">
+                    <span className="login-field__icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    </span>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="login-field__input"
+                      disabled={loading}
+                      required
+                    />
+                  </div>
                 </div>
 
                 <button type="submit" className="login-submit" disabled={loading}>
-                  {loading ? 'Загрузка...' : 'Войти'}
+                  {loading ? (
+                    <span className="login-submit__loader"></span>
+                  ) : (
+                    'Войти'
+                  )}
                 </button>
               </form>
 
@@ -125,7 +141,6 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
               </div>
             </div>
 
-            {/* Быстрый вход для тестирования */}
             <div className="login-mock">
               <p className="login-mock__label">🧪 Быстрый вход для тестирования</p>
               <div className="login-mock__buttons">
@@ -135,21 +150,32 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
                 <button className="login-mock__btn" onClick={() => quickLogin('viewer')}>viewer</button>
               </div>
             </div>
-
           </div>
-        </div>
 
-        {/* ФУТЕР: Ссылка на регистрацию (прибита к низу) */}
-        <div className="login-footer-link">
-          <span className="login-footer-link__text">Нет аккаунта? </span>
-          <button 
-            className="login-footer-link__btn"
-            onClick={() => onNavigate?.('register')}
-          >
-            Зарегистрироваться
-          </button>
-        </div>
+          <div className="login-image">
+            <div className="login-image__wrapper">
+              <div className="login-image__glow"></div>
+              {/* ============= ЗДЕСЬ БЫЛА ЗАМЕНА ============= */}
+              <img 
+                src="/attachments/ФонСвет.png" 
+                alt="Лучи света" 
+                className="login-image__img" 
+              />
+              {/* ============================================ */}
+            </div>
+          </div>
 
+        </div>
+      </div>
+
+      <div className="login-footer">
+        <span className="login-footer__text">Нет аккаунта? </span>
+        <button 
+          className="login-footer__btn" 
+          onClick={() => onNavigate?.('register')}
+        >
+          Зарегистрироваться
+        </button>
       </div>
     </div>
   );

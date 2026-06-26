@@ -7,11 +7,11 @@ interface LandingProps {
 }
 
 const CARDS = [
-  { id: 'red', combo: 'combo-red.png', colorClass: 'tail--red' },
-  { id: 'yellow', combo: 'combo-yellow.png', colorClass: 'tail--yellow' },
-  { id: 'green', combo: 'combo-green.png', colorClass: 'tail--green' },
-  { id: 'blue', combo: 'combo-blue.png', colorClass: 'tail--blue' },
-  { id: 'purple', combo: 'combo-purple.png', colorClass: 'tail--purple' },
+  { id: 'red', combo: 'combo-red.png', color: '#ff4d4d' },
+  { id: 'yellow', combo: 'combo-yellow.png', color: '#ffd700' },
+  { id: 'green', combo: 'combo-green.png', color: '#22c55e' },
+  { id: 'blue', combo: 'combo-blue.png', color: '#0ea5e9' },
+  { id: 'purple', combo: 'combo-purple.png', color: '#a855f7' },
 ];
 
 export const Landing = ({ onNavigate }: LandingProps) => {
@@ -29,12 +29,8 @@ export const Landing = ({ onNavigate }: LandingProps) => {
         </div>
         <div className="landing-nav__actions">
           <span className="landing-nav__user">Пользователь</span>
-          <button className="landing-nav__btn" onClick={() => onNavigate('login')}>
-            Вход
-          </button>
-          <button className="landing-nav__btn" onClick={() => onNavigate('register')}>
-            Регистрация
-          </button>
+          <button className="landing-nav__btn" onClick={() => onNavigate('login')}>Вход</button>
+          <button className="landing-nav__btn" onClick={() => onNavigate('register')}>Регистрация</button>
         </div>
       </nav>
 
@@ -50,28 +46,43 @@ export const Landing = ({ onNavigate }: LandingProps) => {
       <div className="landing-main">
         <div className="landing-main__inner">
           
-          {/* ЦЕЗАРИ (подняты на -62px) */}
+          {/* ЦЕЗАРИ (подняты на 2px: -62 → -64) */}
           <div className="landing-cards-wrapper">
             <div className="landing-cards">
               {CARDS.map((item) => (
                 <div key={item.id} className="landing-card-group">
                   <img 
                     src={`/attachments/${item.combo}`} 
-                    alt="Statue" 
+                    alt="" 
                     className="landing-card-group__combo" 
-                    style={{ marginTop: '-62px' }}
+                    style={{ marginTop: '-64px' }} 
                   />
-                  <div className={`neon-tail ${item.colorClass}`}></div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* ЕДИНАЯ НЕОНОВАЯ МАГИСТРАЛЬ */}
-          <div className="neon-stream-wrapper">
-            <div className="neon-stream">
-              <div className="neon-stream__arrow"></div>
+          {/* БЕГУЩИЙ МЕАНДР */}
+          <div className="neon-frieze neon-show">
+            <div className="neon-frieze__fade-container">
+              <div className="neon-frieze__top-line"></div>
+              <div className="neon-frieze__track">
+                <div className="neon-frieze__scroller">
+                  {Array.from({ length: 14 }).map((_, i) => (
+                    <svg key={`a-${i}`} viewBox="0 0 80 80" width="80" height="80" className="neon-frieze__svg" preserveAspectRatio="xMidYMid meet">
+                      <path d="M 10 10 L 70 10 L 70 70 L 10 70 L 10 30 L 50 30 L 50 50 L 30 50" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="square" strokeLinejoin="miter" />
+                    </svg>
+                  ))}
+                  {Array.from({ length: 14 }).map((_, i) => (
+                    <svg key={`b-${i}`} viewBox="0 0 80 80" width="80" height="80" className="neon-frieze__svg" preserveAspectRatio="xMidYMid meet">
+                      <path d="M 10 10 L 70 10 L 70 70 L 10 70 L 10 30 L 50 30 L 50 50 L 30 50" fill="none" stroke="currentColor" strokeWidth="6" strokeLinecap="square" strokeLinejoin="miter" />
+                    </svg>
+                  ))}
+                </div>
+              </div>
+              <div className="neon-frieze__bottom-line"></div>
             </div>
+            <div className="neon-frieze__vignette"></div>
           </div>
 
         </div>
@@ -82,6 +93,12 @@ export const Landing = ({ onNavigate }: LandingProps) => {
         <div className="landing-3d-section__inner">
           
           <div className="landing-chat-wrapper">
+            {/* ФОН ЗА КАРТОЧКОЙ (ForAIChat.jpg) - аккуратно под стеклом */}
+            <div className="chat-bg-wrapper">
+              <div className="chat-bg-container"></div>
+            </div>
+            
+            {/* Стеклянный чат */}
             <GlassCard3D />
           </div>
 
@@ -95,7 +112,7 @@ export const Landing = ({ onNavigate }: LandingProps) => {
                 </svg>
               }
               title="Храним всё, что важно"
-              desc="Задачи, сроки, исполнители и история каждого изменения — в одной надёжной базе. Чтобы вы не гадали, кто и когда перенёс дедлайн."
+              desc="Задачи, сроки, исполнители и история каждого изменения — в одной надёжной базе."
             />
 
             <ThreeDCard 
@@ -108,7 +125,7 @@ export const Landing = ({ onNavigate }: LandingProps) => {
                 </svg>
               }
               title="Работайте откуда угодно"
-              desc="Доска, задачи и Telegram-уведомления синхронизируются в реальном времени. Команда всегда в курсе, даже если кто-то в дороге."
+              desc="Доска, задачи и Telegram-уведомления синхронизируются в реальном времени."
             />
 
             <ThreeDCard 
@@ -129,8 +146,6 @@ export const Landing = ({ onNavigate }: LandingProps) => {
       {/* ОСТАЛЬНЫЕ СЕКЦИИ */}
       <div className="landing-sections">
         <div className="landing-sections__inner">
-          
-          {/* ОБНОВЛЕННЫЙ БЛОК С КОДОМ (Путь пользователя) */}
           <div className="landing-code">
             <div className="landing-code__left">
               <h2 className="landing-code__title">Путь к вашей первой доске</h2>
