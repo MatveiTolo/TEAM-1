@@ -56,5 +56,35 @@ namespace CAESAR.Server.Controllers
 
             return Ok($"Мессенджер {provider} привязан к вашему аккаунту");
         }
+
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            user.UserName = dto.UserName ?? user.UserName;
+            user.Email = dto.Email ?? user.Email;
+
+            await _context.SaveChangesAsync();
+            return Ok(user);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+            return Ok(user);
+        }
     }
 }
