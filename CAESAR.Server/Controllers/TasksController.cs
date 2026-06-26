@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using CAESAR.Server.Services;
 using CAESAR.Server.Data;
 using CAESAR.Server.DTOs;
 using CAESAR.Server.Models;
@@ -14,10 +15,12 @@ namespace CAESAR.Server.Controllers
     public class TasksController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly INotificationService _notificationService;
 
-        public TasksController(AppDbContext context)
+        public TasksController(AppDbContext context, INotificationService notificationService)
         {
             _context = context;
+            _notificationService = notificationService;
         }
 
         [HttpGet("page/{pageId}")]
@@ -190,6 +193,29 @@ namespace CAESAR.Server.Controllers
 
             await _context.SaveChangesAsync();
 
+            if (oldStatus != dto.targetTaskStatus)
+            {
+                // Запускаем отправку в фоновом потоке, чтобы не тормозить ответ пользователю на доске
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        string messageText = $"🔔 **Уведомление CAESAR**\n" +
+                                             $"Задача #{task.Id} \"{task.Title}\" изменила статус!\n" +
+                                             $"Новый статус: *{GetStatusName(dto.targetTaskStatus)}*.\n" +
+                                             $"Пожалуйста, проверьте изменения на доске.";
+
+                        // Вызываем наш оркестрирующий сервис. Он сам найдет мессенджеры автора задачи (task.CreatedById)
+                        // и через Фабрику сделает рассылку во все подключенные каналы связи параллельно.
+                        await _notificationService.SendToUserAsync(task.CreatedById, messageText);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Сбой отправки пуша: {ex.Message}");
+                    }
+                });
+            }
+
             return Ok(task);
         }
 
@@ -299,6 +325,35 @@ namespace CAESAR.Server.Controllers
                 .ToListAsync();
 
             return Ok(comments);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteBoardTask(int id)
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int currentUserId = int.Parse(userIdClaim!);
+
+            var task = await _context.BoardTasks.FindAsync(id);
+            if (task == null) return NotFound("Задача не найдена");
+
+            var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+            var memeber = await _context.Members
+                .FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
+
+            if (memeber == null) return NotFound("Пользователь не найден");
+            if (memeber.Role == (int)UserRole.Developer || memeber.Role == (int)UserRole.Tester || memeber.Role == (int)UserRole.Viewer) return Forbid("Ваша роль не позволяет этого сделать");
+
+            var tasksToMoveUp = await _context.BoardTasks
+                .Where(t => t.ProjectPageId == task.ProjectPageId
+                && t.Status == task.Status
+                && t.Position > task.Position).ToListAsync();
+
+            foreach (var t in tasksToMoveUp) t.Position--;
+
+            _context.BoardTasks.Remove(task);
+            await _context.SaveChangesAsync();
+
+            return Ok(new {Meesage = $"Задача {id} успешно удалена из системы"});
         }
 
 
