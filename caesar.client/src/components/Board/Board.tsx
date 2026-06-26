@@ -12,8 +12,12 @@ import './Board.css';
 
 const COLUMNS: TaskStatus[] = ['preparation', 'execution', 'testing', 'done'];
 
-export const Board = () => {
-  const { tasks, loading, error, getTasksByStatus, moveTask, createTask } = useTasks();
+interface BoardProps {
+  pageId?: number;
+}
+
+export const Board = ({ pageId = 1 }: BoardProps) => {
+  const { tasks, loading, error, getTasksByStatus, moveTask, createTask } = useTasks(pageId);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -22,6 +26,14 @@ export const Board = () => {
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
     setIsDetailsOpen(true);
+  };
+
+  const handleTaskUpdated = (updatedTask: Task) => {
+    console.log('Задача обновлена:', updatedTask);
+  };
+
+  const handleTaskDeleted = (taskId: number) => {
+    console.log('Задача удалена:', taskId);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -116,6 +128,8 @@ export const Board = () => {
           setIsDetailsOpen(false);
           setSelectedTask(null);
         }}
+        onTaskUpdated={handleTaskUpdated}
+        onTaskDeleted={handleTaskDeleted}
       />
     </DndContext>
   );

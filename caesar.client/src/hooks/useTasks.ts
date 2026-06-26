@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Task, TaskStatus } from '../types';
-import { apiClient } from '../api/apiClient';
+import { getTasks as getTasksApi } from '../services/mockApi';
 
-export const useTasks = () => {
+export const useTasks = (pageId?: number) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -10,89 +10,74 @@ export const useTasks = () => {
   const loadTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getTasks();
+      const data = await getTasksApi(pageId);
       setTasks(data);
       setError(null);
-    } catch (err) {
-      setError('Ошибка загрузки задач');
-      console.error(err);
+    } catch (err: any) {
+      setError(err.message || 'Ошибка загрузки задач');
+      console.error('❌ Ошибка загрузки задач:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pageId]);
 
   const getTasksByStatus = useCallback((status: TaskStatus) => {
     return tasks
       .filter(task => task.status === status)
-      .sort((a, b) => a.position - b.position);
+      .sort((a, b) => (a.position || 0) - (b.position || 0));
   }, [tasks]);
 
   const createTask = useCallback(async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      const newTask = await apiClient.createTask(taskData);
+      const token = localStorage.getItem('caesar_token');
+      const response = await fetch('/api/Tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(taskData),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Ошибка создания задачи');
+      }
+
+      const newTask = await response.json();
       setTasks(prev => [...prev, newTask]);
       return newTask;
     } catch (err) {
-      console.error('Failed to create task:', err);
+      console.error('Ошибка создания задачи:', err);
       throw err;
     }
   }, []);
 
-  const updateTask = useCallback(async (id: number, data: Partial<Task>) => {
+  const moveTask = useCallback(async (taskId: number, newStatus: TaskStatus) => {
     try {
-      const updated = await apiClient.updateTask(id, data);
-      setTasks(prev => prev.map(t => t.id === id ? updated : t));
-      return updated;
-    } catch (err) {
-      console.error('Failed to update task:', err);
-      throw err;
-    }
-  }, []);
-
-  const moveTask = useCallback(async (
-    taskId: number,
-    newStatus: TaskStatus,
-    newPosition?: number
-  ) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) throw new Error('Task not found');
-    
-    const oldStatus = task.status;
-    const oldPosition = task.position;
-    
-    // Оптимистичное обновление
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        return { ...t, status: newStatus, position: newPosition ?? t.position };
-      }
-      if (t.status === newStatus && newPosition !== undefined && t.position >= newPosition && t.id !== taskId) {
-        return { ...t, position: t.position + 1 };
-      }
-      if (t.status === oldStatus && t.position > oldPosition && t.id !== taskId) {
-        return { ...t, position: t.position - 1 };
-      }
-      return t;
-    }));
-
-    try {
-      const updated = await apiClient.updateTask(taskId, {
-        status: newStatus,
-        position: newPosition ?? 0
+      const token = localStorage.getItem('caesar_token');
+      const response = await fetch(`/api/Tasks/${taskId}/move`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
       });
-      
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || 'Ошибка перемещения задачи');
+      }
+
+      const updated = await response.json();
       setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
       return updated;
     } catch (err) {
-      // Откат при ошибке
-      setTasks(prev => prev.map(t => {
-        if (t.id === taskId) {
-          return { ...t, status: oldStatus, position: oldPosition };
-        }
-        return t;
-      }));
+      console.error('Ошибка перемещения задачи:', err);
       throw err;
     }
-  }, [tasks]);
+  }, []);
 
   useEffect(() => {
     loadTasks();
@@ -105,7 +90,6 @@ export const useTasks = () => {
     loadTasks,
     getTasksByStatus,
     createTask,
-    updateTask,
-    moveTask
+    moveTask,
   };
 };

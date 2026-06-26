@@ -296,7 +296,7 @@ function App() {
             <button onClick={handleLogout}>🚪 Выйти</button>
           </div>
         </div>
-        <Board />
+        <Board pageId={1} />
       </div>
     );
   }

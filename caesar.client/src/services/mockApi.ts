@@ -1,121 +1,24 @@
-// src/services/mockApi.ts
-// Реальный API клиент, взаимодействующий с бэкендом
+// ============================================================
+// 1. Вход и регистрация — РЕАЛЬНЫЙ API (с сохранением токена)
+// 2. Все остальные запросы — пока МОК (заглушки)
+// ============================================================
 
-import { getToken } from '../context/ApiContext';
+// ---- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ТОКЕНОМ ----
+const TOKEN_KEY = 'caesar_token';
 
-const API_BASE = '/api';
-
-export const getUsers = async () => {
-  const res = await fetch(`${API_BASE}/users`, {
-    headers: { 'Authorization': `Bearer ${getToken()}` },
-  });
-  if (!res.ok) return MOCK_USERS;
-  return res.json();
+export const getToken = (): string | null => {
+  return localStorage.getItem(TOKEN_KEY);
 };
 
-export const updateUser = async (userId: number, data: any) => {
-  const res = await fetch(`${API_BASE}/users/${userId}`, {
-    method: 'PUT',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getToken()}` 
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Ошибка обновления пользователя');
-  return res.json();
+export const setToken = (token: string): void => {
+  localStorage.setItem(TOKEN_KEY, token);
 };
 
-export const getProjects = async () => {
-  try {
-    const res = await fetch(`${API_BASE}/projects`, {
-      headers: { 'Authorization': `Bearer ${getToken()}` },
-    });
-    
-    if (res.ok) {
-      const data = await res.json();
-      console.log('🔥 Реальные проекты с бэкенда:', data);
-      return data;
-    }
-  } catch (e) {
-    console.warn('⚠️ Не удалось загрузить проекты с бэкенда, использую мок:', e);
-  }
-  
-  return MOCK_PROJECTS;
+export const removeToken = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
 };
 
-export const createProject = async (data: any) => {
-  try {
-    const res = await fetch(`${API_BASE}/projects`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getToken()}` 
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (res.ok) {
-      const result = await res.json();
-      console.log('✅ Проект успешно создан на бэкенде:', result);
-      return result;
-    }
-  } catch (e) {
-    console.warn('⚠️ Не удалось создать проект на бэкенде, создаю локально (мок):', e);
-  }
-
-  const newProject = {
-    id: Date.now(),
-    ...data,
-    createdAt: new Date().toLocaleDateString('ru-RU'),
-    tasksCount: 0,
-    status: 'Активен',
-  };
-  MOCK_PROJECTS.push(newProject);
-  return newProject;
-};
-
-export const getUserProfile = async (userId: number) => {
-  const res = await fetch(`${API_BASE}/users/${userId}`, {
-    headers: { 'Authorization': `Bearer ${getToken()}` },
-  });
-  if (!res.ok) return { ...MOCK_USER_PROFILE, id: userId };
-  return res.json();
-};
-
-export const getTasks = async (projectId?: number) => {
-  const url = projectId ? `${API_BASE}/tasks?projectId=${projectId}` : `${API_BASE}/tasks`;
-  try {
-    const res = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${getToken()}` },
-    });
-    if (res.ok) return res.json();
-  } catch (e) {
-    console.warn('⚠️ Не удалось загрузить задачи, использую мок:', e);
-  }
-  return MOCK_TASKS;
-};
-
-export const createTask = async (data: any) => {
-  try {
-    const res = await fetch(`${API_BASE}/tasks`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getToken()}` 
-      },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) return res.json();
-  } catch (e) {
-    console.warn('⚠️ Не удалось создать задачу на бэкенде, создаю локально:', e);
-  }
-
-  const newTask = { id: Date.now(), ...data };
-  MOCK_TASKS.push(newTask);
-  return newTask;
-};
-
+// ---- МОК-ДАННЫЕ (для остальных запросов) ----
 export const MOCK_USERS = [
   { id: 1, username: 'admin', email: 'admin@example.com', role: 'Главный администратор', status: 'Активен' },
   { id: 2, username: 'developer', email: 'dev@example.com', role: 'Разработчик', status: 'Активен' },
@@ -145,17 +48,23 @@ export const MOCK_TASKS = [
   { id: 4, title: 'Добавить Telegram уведомления', status: 'done', deadline: null, assignee_name: 'Иван Петров' },
 ];
 
+// ---- РЕАЛЬНЫЙ API (АУТЕНТИФИКАЦИЯ) ----
 export const login = async (email: string, password: string) => {
   const response = await fetch('/api/Auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(error || 'Ошибка входа');
   }
+
   const data = await response.json();
+  if (data.token) {
+    setToken(data.token);
+  }
   return data;
 };
 
@@ -165,12 +74,207 @@ export const register = async (username: string, email: string, password: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password }),
   });
+
   const text = await response.text();
+  console.log('📥 Ответ сервера (регистрация):', text);
+
   if (response.ok) {
-    try { return JSON.parse(text); } catch { return { success: true, message: text }; }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { success: true, message: text };
+    }
   }
-  try { const errorJson = JSON.parse(text); throw new Error(errorJson.message || errorJson.title || 'Ошибка регистрации'); } 
-  catch { throw new Error(text || 'Ошибка регистрации'); }
+
+  try {
+    const errorJson = JSON.parse(text);
+    throw new Error(errorJson.message || errorJson.title || 'Ошибка регистрации');
+  } catch {
+    throw new Error(text || 'Ошибка регистрации');
+  }
 };
 
-export const isMockMode = false;
+// ============================================================
+// 2. ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ — РЕАЛЬНЫЙ API
+// ============================================================
+
+export const updateProfile = async (data: { username?: string; email?: string }) => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Не авторизован');
+  }
+
+  const response = await fetch('/api/Users/profile', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Ошибка обновления профиля');
+  }
+
+  return response.json();
+};
+
+// ============================================================
+// 3. ЗАДАЧИ — РЕАЛЬНЫЙ API
+// ============================================================
+
+export const getTasks = async (pageId?: number) => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Не авторизован');
+  }
+
+  const url = pageId ? `/api/Tasks/page/${pageId}` : '/api/Tasks/page/1';
+  
+  console.log('📥 Загрузка задач для страницы:', pageId || 1);
+  
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Ошибка загрузки задач');
+  }
+
+  const data = await response.json();
+  console.log('✅ Задачи загружены:', data);
+  return data;
+};
+
+export const updateTask = async (taskId: number, data: { 
+  title?: string; 
+  description?: string; 
+  deadline?: string | null; 
+  assigneeId?: number | null;
+  status?: string;
+}) => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Не авторизован');
+  }
+
+  const response = await fetch(`/api/Tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Ошибка обновления задачи');
+  }
+
+  return response.json();
+};
+
+export const deleteTask = async (taskId: number) => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Не авторизован');
+  }
+
+  const response = await fetch(`/api/Tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Ошибка удаления задачи');
+  }
+
+  return response.json();
+};
+
+export const getTaskHistory = async (taskId: number) => {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Не авторизован');
+  }
+
+  const response = await fetch(`/api/Tasks/${taskId}/history`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Ошибка получения истории');
+  }
+
+  return response.json();
+};
+
+// ---- МОК-ЗАГЛУШКА для комментариев (пока) ----
+export const getComments = async (_taskId: number) => {
+  await delay(300);
+  return [
+    { id: 1, user_name: 'Иван Петров', text: 'Первый комментарий', created_at: new Date().toISOString() },
+    { id: 2, user_name: 'Мария Смирнова', text: 'Второй комментарий', created_at: new Date().toISOString() },
+  ];
+};
+
+// ---- МОК-ЗАГЛУШКИ (пока без реального API) ----
+export const getUsers = async () => {
+  await delay(300);
+  return MOCK_USERS;
+};
+
+export const getProjects = async () => {
+  await delay(300);
+  return MOCK_PROJECTS;
+};
+
+export const createProject = async (data: any) => {
+  await delay(500);
+  const newProject = {
+    id: Date.now(),
+    ...data,
+    createdAt: new Date().toLocaleDateString('ru-RU'),
+    tasksCount: 0,
+    status: 'Активен',
+  };
+  MOCK_PROJECTS.push(newProject);
+  return newProject;
+};
+
+export const getUserProfile = async (userId: number) => {
+  await delay(300);
+  return { ...MOCK_USER_PROFILE, id: userId };
+};
+
+export const createTask = async (data: any) => {
+  await delay(400);
+  const newTask = { id: Date.now(), ...data };
+  MOCK_TASKS.push(newTask);
+  return newTask;
+};
+
+export const updateUser = async (userId: number, data: any) => {
+  await delay(300);
+  const user = MOCK_USERS.find(u => u.id === userId);
+  if (!user) throw new Error('Пользователь не найден');
+  Object.assign(user, data);
+  return user;
+};
+
+// ---- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const isMockMode = true;
