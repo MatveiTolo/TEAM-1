@@ -1,4 +1,5 @@
 using CAESAR.Server.Data;
+using CAESAR.Server.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -45,6 +46,12 @@ namespace CAESAR.Server
                     ClockSkew = TimeSpan.Zero
                 };
             });
+
+            builder.Services.AddSingleton<NotificationProviderFactory>();
+            // builder.Services.AddTransient<INotificationProvider, *Провайдер*>();
+            // Регистрируем наш оркестрирующий сервис уведомлений
+            builder.Services.AddTransient<INotificationService, NotificationService>();
+
 
             var app = builder.Build();
 
