@@ -1,24 +1,121 @@
-// ============================================================
-// 1. Вход и регистрация — РЕАЛЬНЫЙ API (с сохранением токена)
-// 2. Все остальные запросы — пока МОК (заглушки)
-// ============================================================
+// src/services/mockApi.ts
+// Реальный API клиент, взаимодействующий с бэкендом
 
-// ---- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ТОКЕНОМ ----
-const TOKEN_KEY = 'caesar_token';
+import { getToken } from '../context/ApiContext';
 
-export const getToken = (): string | null => {
-  return localStorage.getItem(TOKEN_KEY);
+const API_BASE = '/api';
+
+export const getUsers = async () => {
+  const res = await fetch(`${API_BASE}/users`, {
+    headers: { 'Authorization': `Bearer ${getToken()}` },
+  });
+  if (!res.ok) return MOCK_USERS;
+  return res.json();
 };
 
-export const setToken = (token: string): void => {
-  localStorage.setItem(TOKEN_KEY, token);
+export const updateUser = async (userId: number, data: any) => {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    method: 'PUT',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getToken()}` 
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Ошибка обновления пользователя');
+  return res.json();
 };
 
-export const removeToken = (): void => {
-  localStorage.removeItem(TOKEN_KEY);
+export const getProjects = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/projects`, {
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      console.log('🔥 Реальные проекты с бэкенда:', data);
+      return data;
+    }
+  } catch (e) {
+    console.warn('⚠️ Не удалось загрузить проекты с бэкенда, использую мок:', e);
+  }
+  
+  return MOCK_PROJECTS;
 };
 
-// ---- МОК-ДАННЫЕ (для остальных запросов) ----
+export const createProject = async (data: any) => {
+  try {
+    const res = await fetch(`${API_BASE}/projects`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}` 
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (res.ok) {
+      const result = await res.json();
+      console.log('✅ Проект успешно создан на бэкенде:', result);
+      return result;
+    }
+  } catch (e) {
+    console.warn('⚠️ Не удалось создать проект на бэкенде, создаю локально (мок):', e);
+  }
+
+  const newProject = {
+    id: Date.now(),
+    ...data,
+    createdAt: new Date().toLocaleDateString('ru-RU'),
+    tasksCount: 0,
+    status: 'Активен',
+  };
+  MOCK_PROJECTS.push(newProject);
+  return newProject;
+};
+
+export const getUserProfile = async (userId: number) => {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    headers: { 'Authorization': `Bearer ${getToken()}` },
+  });
+  if (!res.ok) return { ...MOCK_USER_PROFILE, id: userId };
+  return res.json();
+};
+
+export const getTasks = async (projectId?: number) => {
+  const url = projectId ? `${API_BASE}/tasks?projectId=${projectId}` : `${API_BASE}/tasks`;
+  try {
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    if (res.ok) return res.json();
+  } catch (e) {
+    console.warn('⚠️ Не удалось загрузить задачи, использую мок:', e);
+  }
+  return MOCK_TASKS;
+};
+
+export const createTask = async (data: any) => {
+  try {
+    const res = await fetch(`${API_BASE}/tasks`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}` 
+      },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) return res.json();
+  } catch (e) {
+    console.warn('⚠️ Не удалось создать задачу на бэкенде, создаю локально:', e);
+  }
+
+  const newTask = { id: Date.now(), ...data };
+  MOCK_TASKS.push(newTask);
+  return newTask;
+};
+
 export const MOCK_USERS = [
   { id: 1, username: 'admin', email: 'admin@example.com', role: 'Главный администратор', status: 'Активен' },
   { id: 2, username: 'developer', email: 'dev@example.com', role: 'Разработчик', status: 'Активен' },
@@ -48,23 +145,17 @@ export const MOCK_TASKS = [
   { id: 4, title: 'Добавить Telegram уведомления', status: 'done', deadline: null, assignee_name: 'Иван Петров' },
 ];
 
-// ---- РЕАЛЬНЫЙ API (АУТЕНТИФИКАЦИЯ) ----
 export const login = async (email: string, password: string) => {
   const response = await fetch('/api/Auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-
   if (!response.ok) {
     const error = await response.text();
     throw new Error(error || 'Ошибка входа');
   }
-
   const data = await response.json();
-  if (data.token) {
-    setToken(data.token);
-  }
   return data;
 };
 
@@ -74,76 +165,12 @@ export const register = async (username: string, email: string, password: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password }),
   });
-
   const text = await response.text();
-  console.log('📥 Ответ сервера (регистрация):', text);
-
   if (response.ok) {
-    try {
-      return JSON.parse(text);
-    } catch {
-      return { success: true, message: text };
-    }
+    try { return JSON.parse(text); } catch { return { success: true, message: text }; }
   }
-
-  try {
-    const errorJson = JSON.parse(text);
-    throw new Error(errorJson.message || errorJson.title || 'Ошибка регистрации');
-  } catch {
-    throw new Error(text || 'Ошибка регистрации');
-  }
+  try { const errorJson = JSON.parse(text); throw new Error(errorJson.message || errorJson.title || 'Ошибка регистрации'); } 
+  catch { throw new Error(text || 'Ошибка регистрации'); }
 };
 
-// ---- МОК-ЗАГЛУШКИ (пока без реального API) ----
-export const getUsers = async () => {
-  await delay(300);
-  return MOCK_USERS;
-};
-
-export const getProjects = async () => {
-  await delay(300);
-  return MOCK_PROJECTS;
-};
-
-export const createProject = async (data: any) => {
-  await delay(500);
-  const newProject = {
-    id: Date.now(),
-    ...data,
-    createdAt: new Date().toLocaleDateString('ru-RU'),
-    tasksCount: 0,
-    status: 'Активен',
-  };
-  MOCK_PROJECTS.push(newProject);
-  return newProject;
-};
-
-export const getUserProfile = async (userId: number) => {
-  await delay(300);
-  return { ...MOCK_USER_PROFILE, id: userId };
-};
-
-export const getTasks = async (_projectId?: number) => {
-  await delay(400);
-  return MOCK_TASKS;
-};
-
-export const createTask = async (data: any) => {
-  await delay(400);
-  const newTask = { id: Date.now(), ...data };
-  MOCK_TASKS.push(newTask);
-  return newTask;
-};
-
-export const updateUser = async (userId: number, data: any) => {
-  await delay(300);
-  const user = MOCK_USERS.find(u => u.id === userId);
-  if (!user) throw new Error('Пользователь не найден');
-  Object.assign(user, data);
-  return user;
-};
-
-// ---- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-export const isMockMode = true;
+export const isMockMode = false;

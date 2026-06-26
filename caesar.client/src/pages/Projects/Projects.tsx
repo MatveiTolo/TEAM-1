@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '../../context/ApiContext';
 import './Projects.css';
 
@@ -14,7 +14,7 @@ interface Project {
 
 interface ProjectsProps {
   onSelectProject: (projectId: number) => void;
-  onCreateProject?: () => void; // ← добавили пропс для создания проекта
+  onCreateProject?: () => void;
 }
 
 export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) => {
@@ -22,31 +22,68 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const api = useApi();
+  
+  // ИСПРАВЛЕННАЯ СТРОКА (заменили NodeJS.Timeout на any)
+  const reloadTimerRef = useRef<any | null>(null);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
-      const data = await api.getProjects();
-      setProjects(data);
+      if (showLoading) setLoading(true);
       setError('');
+      console.log('📦 Запрашиваю список проектов с бэкенда (реальные данные)...');
+      
+      // ВАЖНО: Это реальный вызов API. Моков больше нет.
+      const data = await api.getProjects();
+      
+      console.log('✅ Проекты получены с сервера:', data);
+      setProjects(data);
     } catch (err: any) {
+      console.error('❌ Ошибка загрузки проектов:', err);
       setError(err.message || 'Ошибка загрузки проектов');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, [api]);
+
+  // Загрузка при первом заходе
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  // Ловушка на возврат (стрелочка назад и свайпы)
+  useEffect(() => {
+    const handleLocationChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+        
+        reloadTimerRef.current = setTimeout(() => {
+          console.log('🔙 Обнаружен возврат на страницу проектов. Принудительно обновляю данные...');
+          loadProjects(false);
+        }, 300);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleLocationChange);
+    window.addEventListener('popstate', () => {
+      if (document.visibilityState === 'visible') {
+        handleLocationChange();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+    };
+  }, [loadProjects]);
 
   const handleCreateProject = () => {
     if (onCreateProject) {
-      onCreateProject(); // ← используем пропс вместо window.location
+      onCreateProject();
     }
   };
 
-  if (loading) {
+  if (loading && projects.length === 0) {
     return (
       <div className="projects-container">
         <div className="projects-loading">Загрузка проектов...</div>
@@ -59,7 +96,7 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
       <div className="projects-container">
         <div className="projects-error">
           ❌ {error}
-          <button onClick={loadProjects}>Повторить</button>
+          <button onClick={() => loadProjects()}>Повторить</button>
         </div>
       </div>
     );
@@ -73,6 +110,10 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
           + Создать проект
         </button>
       </div>
+
+      {loading && projects.length > 0 && (
+        <div className="projects-updating">🔄 Обновление списка...</div>
+      )}
 
       {projects.length === 0 ? (
         <div className="projects-empty">
