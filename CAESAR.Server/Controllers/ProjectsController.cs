@@ -31,6 +31,7 @@ namespace CAESAR.Server.Controllers
             var newProject = new Project
             {
                 Name = dto.Name,
+                Theme = dto.Theme,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -65,7 +66,13 @@ namespace CAESAR.Server.Controllers
                 {
                     Id = x.ProjectId,
                     Name = x.Project!.Name,
-                    Role = x.Role
+                    Theme = x.Project!.Theme,
+                    CreatedAt = x.Project!.CreatedAt,
+                    Role = x.Role,
+                    TasksCount = _context.ProjectPages
+                        .Where(p => p.ProjectId == x.ProjectId)
+                        .SelectMany(p => _context.BoardTasks.Where(t => t.ProjectPageId == p.Id))
+                        .Count()
                 }).ToListAsync();
 
             return Ok(projects);

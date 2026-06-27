@@ -1,56 +1,46 @@
 .task-card {
-  background: white;
-  border-radius: 8px;
-  padding: 12px 14px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 13px 15px;
   margin-bottom: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border-left: 4px solid transparent;
+  cursor: grab;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  border-left: 3px solid transparent;
 }
-
 .task-card:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  border-color: var(--c-border-2);
   transform: translateY(-2px);
+  box-shadow: 0 10px 28px -10px rgba(0,0,0,0.8);
 }
 
-.task-card--expired {
-  border-left-color: #dc3545;
-  background-color: #fff5f5;
-}
-
-.task-card--soon {
-  border-left-color: #ffc107;
-  background-color: #fffcf0;
-}
+.task-card--expired { border-left-color: var(--c-danger); }
+.task-card--soon    { border-left-color: var(--c-warning); }
 
 .task-card__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: 12px;
 }
-
-.task-card__id {
-  color: #6c757d;
-  font-weight: 600;
-}
-
+.task-card__id { color: var(--c-text-faint); font-weight: 600; }
 .task-card__status-badge {
-  background: #e9ecef;
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border-2);
   padding: 2px 8px;
-  border-radius: 12px;
+  border-radius: var(--r-pill);
   font-size: 10px;
-  color: #495057;
+  color: var(--c-text-muted);
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .task-card__title {
-  margin: 0 0 8px 0;
+  margin: 0 0 10px 0;
   font-size: 14px;
   font-weight: 500;
-  color: #212529;
+  color: var(--c-text);
   line-height: 1.4;
 }
 
@@ -59,71 +49,21 @@
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #6c757d;
+  color: var(--c-text-faint);
+  gap: 8px;
 }
+.task-card__deadline, .task-card__assignee { display: flex; align-items: center; gap: 4px; }
 
-.task-card__deadline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.task-card__assignee {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Планшеты */
 @media (max-width: 1024px) {
-  .task-card {
-    padding: 10px 12px;
-  }
-
-  .task-card__title {
-    font-size: 13px;
-  }
-
-  .task-card__footer {
-    font-size: 11px;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
+  .task-card { padding: 10px 12px; }
+  .task-card__title { font-size: 13px; }
+  .task-card__footer { font-size: 11px; flex-direction: column; align-items: flex-start; gap: 2px; }
 }
-
-/* Телефоны */
 @media (max-width: 768px) {
-  .task-card {
-    padding: 8px 10px;
-    margin-bottom: 6px;
-  }
-
-  .task-card__header {
-    font-size: 10px;
-  }
-
-  .task-card__title {
-    font-size: 12px;
-    margin-bottom: 4px;
-  }
-
-  .task-card__footer {
-    font-size: 10px;
-  }
+  .task-card { padding: 9px 11px; margin-bottom: 6px; }
+  .task-card__title { font-size: 12px; }
 }
-
-/* Маленькие телефоны */
 @media (max-width: 480px) {
-  .task-card {
-    padding: 6px 8px;
-  }
-
-  .task-card__title {
-    font-size: 11px;
-  }
-
-  .task-card__footer {
-    font-size: 9px;
-  }
+  .task-card { padding: 7px 9px; }
+  .task-card__title { font-size: 11px; }
 }

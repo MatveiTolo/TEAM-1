@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import './App.css';
+import { AppShell } from './components/AppShell/AppShell';
 import { Board } from './components/Board/Board';
 import { ProjectSetup } from './pages/ProjectSetup/ProjectSetup';
 import { Login } from './pages/Login/Login';
@@ -14,19 +14,11 @@ import { Reports } from './pages/Reports/Reports';
 import { Error } from './pages/Error/Error';
 import { useApi } from './context/ApiContext';
 
-type Screen = 
-  | 'landing'
-  | 'login'
-  | 'register'
-  | 'projects'
-  | 'setup'
-  | 'board'
-  | 'profile'
-  | 'admin'
-  | 'invite'
-  | 'calendar'
-  | 'reports'
-  | 'error';
+type Screen =
+  | 'landing' | 'login' | 'register'
+  | 'projects' | 'setup' | 'board'
+  | 'profile' | 'admin' | 'invite'
+  | 'calendar' | 'reports' | 'error';
 
 function App() {
   const api = useApi();
@@ -38,7 +30,6 @@ function App() {
   const handleLogin = (username: string) => {
     setCurrentUser(username);
     setCurrentScreen('projects');
-    console.log('🔑 Токен сохранён:', localStorage.getItem('caesar_token'));
   };
 
   const handleProjectCreated = (name: string, theme: string) => {
@@ -47,9 +38,7 @@ function App() {
     setCurrentScreen('board');
   };
 
-  const handleSelectProject = () => {
-    setCurrentScreen('board');
-  };
+  const handleSelectProject = () => setCurrentScreen('board');
 
   const handleLogout = () => {
     localStorage.removeItem('caesar_token');
@@ -57,277 +46,100 @@ function App() {
     setCurrentScreen('landing');
   };
 
-  const handleNavigate = (page: string) => {
-    setCurrentScreen(page as Screen);
-  };
+  const navigate = (page: string) => setCurrentScreen(page as Screen);
 
-  // ========== Лендинг ==========
+  // ============ Публичные экраны (свой собственный фон) ============
   if (currentScreen === 'landing') {
-    return <Landing onNavigate={handleNavigate} />;
+    return <Landing onNavigate={navigate} />;
   }
 
-  // ========== Вход ==========
   if (currentScreen === 'login') {
-    return <Login onLogin={handleLogin} onNavigate={handleNavigate} />;
+    return <Login onLogin={handleLogin} onNavigate={navigate} />;
   }
 
-  // ========== Регистрация ==========
   if (currentScreen === 'register') {
     return (
-      <Register 
-        onRegister={handleLogin} 
+      <Register
+        onRegister={handleLogin}
         onBack={() => setCurrentScreen('login')}
-        onNavigate={handleNavigate}
+        onNavigate={navigate}
       />
     );
   }
 
-  // ========== Приглашение ==========
   if (currentScreen === 'invite') {
     return (
-      <Invite 
-        onAccept={() => {
-          alert('✅ Приглашение принято!');
-          setCurrentScreen('projects');
-        }}
-        onReject={() => {
-          alert('❌ Приглашение отклонено');
-          setCurrentScreen('projects');
-        }}
+      <Invite
+        onAccept={() => setCurrentScreen('projects')}
+        onReject={() => setCurrentScreen('projects')}
       />
     );
   }
 
-  // ========== Календарь ==========
-  if (currentScreen === 'calendar') {
-    return (
-      <div className="app">
-        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {api.isMockMode && (
-          <div style={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            background: '#212529',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontSize: 12,
-            zIndex: 9999,
-            opacity: 0.8,
-            maxWidth: 260,
-            textAlign: 'center'
-          }}>
-            🧪 МОК-РЕЖИМ<br/>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              Страницы с 🧪 — заглушки
-            </span>
-          </div>
-        )}
-        <div className="app-topbar">
-          <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
-          <span className="app-topbar__user">📅 Календарь</span>
-          <div className="app-topbar__actions">
-            <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
-            <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
-            <button onClick={handleLogout}>🚪 Выйти</button>
-          </div>
-        </div>
-        <Calendar />
-      </div>
-    );
-  }
-
-  // ========== Отчёты ==========
-  if (currentScreen === 'reports') {
-    return (
-      <div className="app">
-        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {api.isMockMode && (
-          <div style={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            background: '#212529',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontSize: 12,
-            zIndex: 9999,
-            opacity: 0.8,
-            maxWidth: 260,
-            textAlign: 'center'
-          }}>
-            🧪 МОК-РЕЖИМ<br/>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              Страницы с 🧪 — заглушки
-            </span>
-          </div>
-        )}
-        <div className="app-topbar">
-          <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
-          <span className="app-topbar__user">📊 Отчёты</span>
-          <div className="app-topbar__actions">
-            <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
-            <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
-            <button onClick={handleLogout}>🚪 Выйти</button>
-          </div>
-        </div>
-        <Reports />
-      </div>
-    );
-  }
-
-  // ========== Ошибка ==========
   if (currentScreen === 'error') {
     return <Error code={404} onGoHome={() => setCurrentScreen('projects')} />;
   }
 
-  // ========== Проекты ==========
+  // ============ Приложение (общий каркас AppShell) ============
+  const shellProps = {
+    onNavigate: navigate,
+    onLogout: handleLogout,
+    isMock: api.isMockMode,
+  };
+
   if (currentScreen === 'projects') {
     return (
-      <div className="app">
-        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {api.isMockMode && (
-          <div style={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            background: '#212529',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontSize: 12,
-            zIndex: 9999,
-            opacity: 0.8,
-            maxWidth: 260,
-            textAlign: 'center'
-          }}>
-            🧪 МОК-РЕЖИМ<br/>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              Страницы с 🧪 — заглушки
-            </span>
-          </div>
-        )}
-        <div className="app-topbar">
-          <span className="app-topbar__user">👤 {currentUser}</span>
-          <div className="app-topbar__actions">
-            <button onClick={() => setCurrentScreen('calendar')}>📅 Календарь</button>
-            <button onClick={() => setCurrentScreen('reports')}>📊 Отчёты</button>
-            <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
-            <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
-            <button onClick={handleLogout}>🚪 Выйти</button>
-          </div>
-        </div>
-        <Projects 
-          onSelectProject={handleSelectProject} 
+      <AppShell {...shellProps} title={currentUser} subtitle="Рабочее пространство" active="projects">
+        <Projects
+          onSelectProject={handleSelectProject}
           onCreateProject={() => setCurrentScreen('setup')}
         />
-      </div>
+      </AppShell>
     );
   }
 
-  // ========== Создание проекта ==========
   if (currentScreen === 'setup') {
     return (
-      <div className="app">
-        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {api.isMockMode && (
-          <div style={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            background: '#212529',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontSize: 12,
-            zIndex: 9999,
-            opacity: 0.8,
-            maxWidth: 260,
-            textAlign: 'center'
-          }}>
-            🧪 МОК-РЕЖИМ<br/>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              Страницы с 🧪 — заглушки
-            </span>
-          </div>
-        )}
+      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Новый проект" minimalNav>
         <ProjectSetup onProjectCreated={handleProjectCreated} />
-      </div>
+      </AppShell>
     );
   }
 
-  // ========== Доска ==========
   if (currentScreen === 'board') {
     return (
-      <div className="app">
-        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {api.isMockMode && (
-          <div style={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            background: '#212529',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontSize: 12,
-            zIndex: 9999,
-            opacity: 0.8,
-            maxWidth: 260,
-            textAlign: 'center'
-          }}>
-            🧪 МОК-РЕЖИМ<br/>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              Страницы с 🧪 — заглушки
-            </span>
-          </div>
-        )}
-        <div className="app-topbar">
-          <button className="app-topbar__back" onClick={() => setCurrentScreen('projects')}>←</button>
-          <span className="app-topbar__project">📋 {projectName || 'Проект'}</span>
-          <span className="app-topbar__theme">{projectTheme}</span>
-          <div className="app-topbar__actions">
-            <button onClick={() => setCurrentScreen('calendar')}>📅 Календарь</button>
-            <button onClick={() => setCurrentScreen('reports')}>📊 Отчёты</button>
-            <button onClick={() => setCurrentScreen('profile')}>👤 Профиль</button>
-            <button onClick={() => setCurrentScreen('admin')}>🛡️ Админ</button>
-            <button onClick={handleLogout}>🚪 Выйти</button>
-          </div>
-        </div>
+      <AppShell
+        {...shellProps}
+        onBack={() => setCurrentScreen('projects')}
+        title={projectName || 'Проект'}
+        subtitle={projectTheme}
+        active="projects"
+      >
         <Board pageId={1} />
-      </div>
+      </AppShell>
     );
   }
 
-  // ========== Профиль ==========
+  if (currentScreen === 'calendar') {
+    return (
+      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Календарь" active="calendar">
+        <Calendar />
+      </AppShell>
+    );
+  }
+
+  if (currentScreen === 'reports') {
+    return (
+      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Отчёты" active="reports">
+        <Reports />
+      </AppShell>
+    );
+  }
+
   if (currentScreen === 'profile') {
     return (
-      <div className="app">
-        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {api.isMockMode && (
-          <div style={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            background: '#212529',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontSize: 12,
-            zIndex: 9999,
-            opacity: 0.8,
-            maxWidth: 260,
-            textAlign: 'center'
-          }}>
-            🧪 МОК-РЕЖИМ<br/>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              Страницы с 🧪 — заглушки
-            </span>
-          </div>
-        )}
-        <UserProfile 
+      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Профиль" active="profile">
+        <UserProfile
           user={{
             id: 1,
             username: currentUser || 'Пользователь',
@@ -337,40 +149,16 @@ function App() {
             projectsCount: 4,
           }}
           onLogout={handleLogout}
-          onBack={() => setCurrentScreen('projects')}
         />
-      </div>
+      </AppShell>
     );
   }
 
-  // ========== Админка ==========
   if (currentScreen === 'admin') {
     return (
-      <div className="app">
-        {api.isMockMode && <div className="mock-badge">🧪 МОК-РЕЖИМ</div>}
-        {api.isMockMode && (
-          <div style={{
-            position: 'fixed',
-            bottom: 80,
-            right: 16,
-            background: '#212529',
-            color: 'white',
-            padding: '8px 16px',
-            borderRadius: 8,
-            fontSize: 12,
-            zIndex: 9999,
-            opacity: 0.8,
-            maxWidth: 260,
-            textAlign: 'center'
-          }}>
-            🧪 МОК-РЕЖИМ<br/>
-            <span style={{ fontSize: 10, opacity: 0.7 }}>
-              Страницы с 🧪 — заглушки
-            </span>
-          </div>
-        )}
+      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Панель администратора" active="admin">
         <Admin onBack={() => setCurrentScreen('projects')} />
-      </div>
+      </AppShell>
     );
   }
 

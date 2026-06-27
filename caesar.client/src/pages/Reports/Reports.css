@@ -1,56 +1,112 @@
+/* Reports — тёмный дашборд статистики */
+
 .reports-container {
-  padding: 40px;
-  min-height: 80vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
 }
 
-.reports-placeholder {
-  text-align: center;
-  max-width: 500px;
+.rep-head { margin-bottom: 28px; }
+.rep-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(26px, 3.5vw, 36px);
+  letter-spacing: 2px;
+  color: var(--c-text);
+  margin: 0;
 }
+.rep-sub { color: var(--c-text-faint); font-size: 14px; margin-top: 4px; }
 
-.reports-icon {
-  font-size: 80px;
-  margin-bottom: 16px;
-}
+.rep-error { color: var(--c-danger); padding: 16px 0; }
+.rep-loading { color: var(--c-text-muted); padding: 32px; text-align: center; }
 
-.reports-placeholder h2 {
-  font-size: 28px;
-  color: #212529;
-  margin-bottom: 12px;
-}
-
-.reports-placeholder p {
-  font-size: 16px;
-  color: #6c757d;
+.rep-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
   margin-bottom: 24px;
 }
+.rep-card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-panel);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.rep-card__num {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--c-text);
+  line-height: 1;
+}
+.rep-card__label { font-size: 13px; color: var(--c-text-faint); text-transform: uppercase; letter-spacing: 0.5px; }
+.rep-card--warn .rep-card__num   { color: var(--c-warning); }
+.rep-card--danger .rep-card__num { color: var(--c-danger); }
 
-.reports-mock {
-  background: #f8f9fa;
-  padding: 20px 24px;
-  border-radius: 12px;
-  text-align: left;
+.rep-panel {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-panel);
+  padding: 26px 28px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.rep-panel__title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: var(--c-text);
+  margin: 0 0 20px;
 }
 
-.reports-mock-item {
+.rep-bars { display: flex; flex-direction: column; gap: 16px; }
+.rep-bar__head {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #e9ecef;
+  font-size: 14px;
+  color: var(--c-text-muted);
+  margin-bottom: 8px;
 }
+.rep-bar__count { color: var(--c-text); font-weight: 600; }
+.rep-bar__track {
+  height: 8px;
+  background: var(--c-surface-3);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.rep-bar__fill {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--c-text-dim);
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rep-bar__fill.status-preparation { background: var(--c-status-prep); }
+.rep-bar__fill.status-execution   { background: var(--c-status-exec); }
+.rep-bar__fill.status-testing     { background: var(--c-status-test); }
+.rep-bar__fill.status-done        { background: var(--c-status-done); }
 
-.reports-mock-item:last-child {
-  border-bottom: none;
+.rep-empty { color: var(--c-text-faint); font-size: 14px; }
+.rep-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.rep-list__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--c-border);
 }
-
-.reports-mock-item span {
-  color: #495057;
-}
-
-.reports-mock-item strong {
-  color: #212529;
-  font-size: 18px;
-}
+.rep-list__item:last-child { border-bottom: none; }
+.rep-list__dot { width: 9px; height: 9px; border-radius: 3px; background: var(--c-text-dim); flex-shrink: 0; }
+.rep-list__dot.status-preparation { background: var(--c-status-prep); }
+.rep-list__dot.status-execution   { background: var(--c-status-exec); }
+.rep-list__dot.status-testing     { background: var(--c-status-test); }
+.rep-list__dot.status-done        { background: var(--c-status-done); }
+.rep-list__name { flex: 1; color: var(--c-text); font-size: 14px; }
+.rep-list__date { font-size: 13px; color: var(--c-text-faint); }
+.rep-list__date.expired { color: var(--c-danger); }
+.rep-list__date.soon    { color: var(--c-warning); }

@@ -1,0 +1,260 @@
+/* ============================================================
+   CAESAR — единая дизайн-система (тёмный имперский глассморфизм)
+   Источник правды для всех внутренних страниц приложения.
+   Совпадает со стилем страниц Login / Register / Landing.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Фон */
+  --c-bg:            #0a0a0a;
+  --c-bg-soft:       #0f0f0f;
+
+  /* Стеклянные поверхности */
+  --c-surface:       rgba(15, 15, 15, 0.7);
+  --c-surface-2:     rgba(255, 255, 255, 0.03);
+  --c-surface-3:     rgba(255, 255, 255, 0.05);
+  --c-surface-hover: rgba(255, 255, 255, 0.08);
+
+  /* Границы */
+  --c-border:        rgba(255, 255, 255, 0.06);
+  --c-border-2:      rgba(255, 255, 255, 0.08);
+  --c-border-strong: rgba(255, 255, 255, 0.3);
+
+  /* Текст */
+  --c-text:          #ffffff;
+  --c-text-muted:    rgba(255, 255, 255, 0.4);
+  --c-text-faint:    rgba(255, 255, 255, 0.3);
+  --c-text-dim:      rgba(255, 255, 255, 0.2);
+
+  /* Семантика */
+  --c-danger:        #ff6b7a;
+  --c-danger-bg:     rgba(220, 53, 69, 0.1);
+  --c-danger-border: rgba(220, 53, 69, 0.2);
+  --c-success:       #4ade80;
+  --c-success-bg:    rgba(34, 197, 94, 0.1);
+  --c-success-border:rgba(34, 197, 94, 0.25);
+  --c-warning:       #fbbf24;
+
+  /* Статусы доски */
+  --c-status-prep:   #94a3b8;
+  --c-status-exec:   #60a5fa;
+  --c-status-test:   #c084fc;
+  --c-status-done:   #4ade80;
+
+  /* Радиусы */
+  --r-card:   32px;
+  --r-panel:  24px;
+  --r-field:  16px;
+  --r-pill:   999px;
+
+  /* Шрифты */
+  --font-display: 'Cinzel', serif;
+  --font-body:    'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Тени */
+  --shadow-card: inset 0 0 60px rgba(255, 255, 255, 0.02),
+                 0 24px 64px -12px rgba(0, 0, 0, 0.8);
+
+  /* Топбар */
+  --topbar-h: 72px;
+}
+
+/* ---------- Анимированный фон страницы ---------- */
+.caesar-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(40, 40, 40, 0.5) 0%, transparent 55%),
+    radial-gradient(circle at 80% 70%, rgba(80, 80, 80, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.02) 0%, transparent 40%),
+    var(--c-bg);
+  background-size: 150% 150%;
+  animation: caesarMoveShadow 18s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes caesarMoveShadow {
+  0%   { background-position: 0% 0%; }
+  33%  { background-position: 100% 100%; }
+  66%  { background-position: 0% 100%; }
+  100% { background-position: 100% 0%; }
+}
+
+/* ---------- Стеклянная карточка ---------- */
+.glass-card {
+  background: var(--c-surface);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+}
+
+.glass-panel {
+  background: var(--c-surface-2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-panel);
+}
+
+/* ---------- Поля ввода ---------- */
+.caesar-label {
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--c-text-muted);
+  letter-spacing: 1px;
+  font-weight: 500;
+}
+
+.caesar-input {
+  width: 100%;
+  padding: 14px 18px;
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border-2);
+  border-radius: var(--r-field);
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--c-text);
+  transition: all 0.3s ease;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.caesar-input::placeholder { color: var(--c-text-dim); }
+
+.caesar-input:focus {
+  border-color: var(--c-border-strong);
+  background: var(--c-surface-hover);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.02);
+}
+
+.caesar-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- Кнопки ---------- */
+.caesar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  letter-spacing: 0.3px;
+}
+
+.caesar-btn--primary {
+  background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
+  color: #0a0a0a;
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+}
+.caesar-btn--primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(255, 255, 255, 0.18);
+}
+
+.caesar-btn--ghost {
+  background: var(--c-surface-3);
+  color: var(--c-text);
+  border-color: var(--c-border-2);
+}
+.caesar-btn--ghost:hover:not(:disabled) {
+  background: var(--c-surface-hover);
+  transform: translateY(-1px);
+}
+
+.caesar-btn--danger {
+  background: var(--c-danger-bg);
+  color: var(--c-danger);
+  border-color: var(--c-danger-border);
+}
+.caesar-btn--danger:hover:not(:disabled) {
+  background: rgba(220, 53, 69, 0.18);
+  transform: translateY(-1px);
+}
+
+.caesar-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ---------- Заголовки ---------- */
+.caesar-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--c-text);
+  letter-spacing: 3px;
+  margin: 0;
+}
+
+/* ---------- Сообщения ---------- */
+.caesar-alert {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  text-align: center;
+}
+.caesar-alert--error {
+  background: var(--c-danger-bg);
+  border: 1px solid var(--c-danger-border);
+  color: var(--c-danger);
+}
+.caesar-alert--success {
+  background: var(--c-success-bg);
+  border: 1px solid var(--c-success-border);
+  color: var(--c-success);
+}
+
+/* ---------- Бейджи ---------- */
+.caesar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--r-pill);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--c-border-2);
+  background: var(--c-surface-3);
+  color: var(--c-text-muted);
+}
+.caesar-badge--active  { color: var(--c-success); border-color: var(--c-success-border); background: var(--c-success-bg); }
+.caesar-badge--blocked { color: var(--c-danger);  border-color: var(--c-danger-border);  background: var(--c-danger-bg); }
+
+/* ---------- Спиннер ---------- */
+.caesar-loader {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--c-text);
+  border-radius: 50%;
+  animation: caesarSpin 0.8s linear infinite;
+}
+.caesar-loader--dark { border-color: rgba(0,0,0,0.1); border-top-color: #0a0a0a; }
+@keyframes caesarSpin { to { transform: rotate(360deg); } }
+
+/* ---------- Анимации появления ---------- */
+@keyframes caesarFadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-up {
+  animation: caesarFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+/* ---------- Скроллбар ---------- */
+.caesar-scope ::-webkit-scrollbar { width: 8px; height: 8px; }
+.caesar-scope ::-webkit-scrollbar-track { background: transparent; }
+.caesar-scope ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}
+.caesar-scope ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }

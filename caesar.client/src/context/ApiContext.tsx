@@ -16,6 +16,7 @@ export interface ApiService {
   deleteTask: typeof mockApi.deleteTask;
   getTaskHistory: typeof mockApi.getTaskHistory;
   getComments: typeof mockApi.getComments;
+  addComment: typeof mockApi.addComment;
   isMockMode: boolean;
 }
 

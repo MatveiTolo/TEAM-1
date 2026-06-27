@@ -56,7 +56,6 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
     e.preventDefault();
     setError('');
 
-    console.log('🔵 1. handleSubmit вызван');
 
     if (!projectName.trim()) {
       setError('Введите название проекта');
@@ -75,13 +74,11 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
       roles = theme?.roles || [];
     }
 
-    console.log('🔵 2. Данные для отправки:', { projectName, themeName });
 
     try {
       setLoading(true);
 
       const token = localStorage.getItem('caesar_token');
-      console.log('🔵 3. Токен:', token ? '✅ есть' : '❌ нет');
 
       if (!token) {
         throw new Error('Токен не найден. Пожалуйста, войдите заново.');
@@ -92,7 +89,6 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
         theme: themeName,
       };
 
-      console.log('🔵 4. Отправка запроса на /api/Projects:', requestBody);
 
       const response = await fetch('/api/Projects', {
         method: 'POST',
@@ -103,25 +99,13 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
         body: JSON.stringify(requestBody),
       });
 
-      console.log('🔵 5. Статус ответа:', response.status, response.statusText);
 
       const responseText = await response.text();
-      console.log('🔵 6. Тело ответа:', responseText);
 
       if (!response.ok) {
         throw new Error(`Ошибка ${response.status}: ${responseText}`);
       }
 
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-        console.log('🔵 7. Ответ распарсен:', responseData);
-      } catch {
-        console.log('🔵 7. Ответ не JSON, используем как есть');
-        responseData = { success: true, message: responseText };
-      }
-
-      console.log('🔵 8. Вызов onProjectCreated');
       onProjectCreated(projectName.trim(), themeName, roles);
 
     } catch (err: any) {
@@ -129,7 +113,6 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
       setError(err.message || 'Произошла ошибка при создании проекта');
     } finally {
       setLoading(false);
-      console.log('🔵 9. Завершено');
     }
   };
 

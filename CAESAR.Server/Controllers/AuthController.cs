@@ -50,7 +50,14 @@ namespace CAESAR.Server.Controllers
             _context.Users.Add(nextUser);
             await _context.SaveChangesAsync();
 
-            return Ok("Регистрация прошла успешно");
+            var token = GenerateToken(nextUser);
+
+            return Ok(new
+            {
+                Message = "Регистрация прошла успешно",
+                Token = token,
+                Username = nextUser.UserName
+            });
         }
 
         [HttpPost("login")]
@@ -67,13 +74,25 @@ namespace CAESAR.Server.Controllers
             if (result == PasswordVerificationResult.Failed) return BadRequest("Неверная почта или пароль");
 
             // Генерация JWT-токена
+            var tokenString = GenerateToken(user);
 
+            return Ok(new
+            {
+                Message = "Успешный вход",
+                Token = tokenString,
+                Username = user.UserName
+            });
+
+        }
+
+        // Единый генератор JWT-токена для входа и авто-входа после регистрации
+        private string GenerateToken(User user)
+        {
             var jwtSettings = _configuration.GetSection("JwtSettings");
             var secretkey = jwtSettings.GetValue<string>("Secret");
             var issuer = jwtSettings.GetValue<string>("Issuer");
             var audience = jwtSettings.GetValue<string>("Issuer");
 
-            // Превращаем ключ в криптографический массив байт
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretkey!));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
 
@@ -90,15 +109,7 @@ namespace CAESAR.Server.Controllers
                 expires: DateTime.UtcNow.AddDays(7),
                 signingCredentials: credentials);
 
-            var tokenString = new JwtSecurityTokenHandler().WriteToken(tokenOptions);
-
-            return Ok(new
-            {
-                Message = "Успешный вход",
-                Token = tokenString,
-                Username = user.UserName
-            });
-
+            return new JwtSecurityTokenHandler().WriteToken(tokenOptions);
         }
     }
 }

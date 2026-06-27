@@ -1,13 +1,16 @@
 ﻿using CAESAR.Server.Data;
 using CAESAR.Server.DTOs;
 using CAESAR.Server.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 
 namespace CAESAR.Server.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ProjectPagesController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -20,7 +23,9 @@ namespace CAESAR.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> CreatePage(CreatePageDto dto)
         {
-            int currentUserId = 1;
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+            int currentUserId = int.Parse(userIdClaim);
 
             if (string.IsNullOrWhiteSpace(dto.Name)) return BadRequest("Название страницы не может быть пустой");
 
@@ -45,7 +50,9 @@ namespace CAESAR.Server.Controllers
         [HttpGet("project/{projectId}")]
         public async Task<IActionResult> GetPagesByProject(int projectId)
         {
-            int currentUserId = 1;
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+            int currentUserId = int.Parse(userIdClaim);
 
             var isMember = await _context.Members
                 .AnyAsync(m => m.ProjectId == projectId && m.UserId == currentUserId);

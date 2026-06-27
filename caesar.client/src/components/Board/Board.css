@@ -2,7 +2,7 @@
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
-  height: 100vh;
+  height: calc(100vh - var(--topbar-h));
   display: flex;
   flex-direction: column;
 }
@@ -13,151 +13,90 @@
   align-items: center;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid #e9ecef;
+  border-bottom: 1px solid var(--c-border);
 }
 
 .board__title {
   margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #212529;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: 2px;
+  color: var(--c-text);
 }
 
 .board__add-btn {
-  background: #0d6efd;
-  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
+  color: #0a0a0a;
   border: none;
-  padding: 10px 24px;
-  border-radius: 8px;
-  font-size: 16px;
+  padding: 11px 22px;
+  border-radius: var(--r-pill);
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease;
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-
-.board__add-btn:hover {
-  background: #0b5ed7;
-}
+.board__add-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(255,255,255,0.18); }
 
 .board__columns {
   display: flex;
-  gap: 20px;
+  gap: 18px;
   flex: 1;
   overflow-x: auto;
   padding-bottom: 8px;
 }
 
-.board__loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  gap: 16px;
-}
-
-.board__spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #e9ecef;
-  border-top-color: #0d6efd;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
+.board__loading,
 .board__error {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  height: calc(100vh - var(--topbar-h));
   gap: 16px;
+  color: var(--c-text-muted);
+}
+
+.board__spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--c-surface-3);
+  border-top-color: var(--c-text);
+  border-radius: 50%;
+  animation: caesarSpin 0.8s linear infinite;
 }
 
 .board__error button {
-  padding: 8px 20px;
-  background: #0d6efd;
-  color: white;
-  border: none;
-  border-radius: 6px;
+  padding: 10px 22px;
+  background: var(--c-surface-3);
+  color: var(--c-text);
+  border: 1px solid var(--c-border-2);
+  border-radius: var(--r-pill);
   cursor: pointer;
 }
 
-/* Планшеты (до 1024px) */
 @media (max-width: 1024px) {
-  .board {
-    padding: 16px;
-  }
-
-  .board__title {
-    font-size: 22px;
-  }
-
-  .board__columns {
-    gap: 12px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 12px;
-    scroll-snap-type: x mandatory;
-  }
-
-  .board__columns > * {
-    scroll-snap-align: start;
-  }
+  .board { padding: 16px; }
+  .board__title { font-size: 22px; }
+  .board__columns { gap: 12px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x mandatory; }
+  .board__columns > * { scroll-snap-align: start; }
 }
 
-/* Телефоны (до 768px) */
 @media (max-width: 768px) {
-  .board {
-    padding: 12px;
-    height: 100vh;
-  }
-
-  .board__header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .board__title {
-    font-size: 20px;
-    text-align: center;
-  }
-
-  .board__add-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .board__columns {
-    gap: 10px;
-    flex: 1;
-    overflow-x: auto;
-    padding-bottom: 8px;
-  }
+  .board { padding: 12px; }
+  .board__header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 16px; }
+  .board__title { font-size: 20px; text-align: center; }
+  .board__add-btn { width: 100%; justify-content: center; }
+  .board__columns { gap: 10px; }
 }
 
-/* Маленькие телефоны (до 480px) */
 @media (max-width: 480px) {
-  .board {
-    padding: 8px;
-  }
-
-  .board__title {
-    font-size: 18px;
-  }
-
-  .board__add-btn {
-    font-size: 14px;
-    padding: 8px 16px;
-  }
-
-  .board__columns {
-    gap: 8px;
-  }
+  .board { padding: 8px; }
+  .board__title { font-size: 18px; }
+  .board__add-btn { font-size: 14px; padding: 8px 16px; }
+  .board__columns { gap: 8px; }
 }

@@ -1,73 +1,67 @@
-.invite-container {
+/* Invite — тёмная карточка приглашения на весь экран */
+
+.invite-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
-  padding: 20px;
+  position: relative;
+  background: var(--c-bg);
+  padding: 24px;
 }
 
 .invite-card {
-  background: white;
-  padding: 48px 40px;
-  border-radius: 20px;
-  max-width: 480px;
+  position: relative;
+  z-index: 10;
   width: 100%;
+  max-width: 460px;
+  background: var(--c-surface);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-card);
+  padding: 44px 40px;
+  box-shadow: var(--shadow-card);
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: caesarFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
 }
 
 .invite-icon {
-  font-size: 56px;
-  margin-bottom: 16px;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 20px;
+  border-radius: 18px;
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-text);
 }
-
 .invite-title {
+  font-family: var(--font-display);
+  font-weight: 500;
   font-size: 24px;
-  margin: 0 0 12px 0;
-  color: #212529;
+  letter-spacing: 2px;
+  color: var(--c-text);
+  margin: 0 0 12px;
 }
-
-.invite-description {
-  font-size: 16px;
-  color: #6c757d;
-  margin-bottom: 8px;
-}
+.invite-text { color: var(--c-text-faint); font-size: 15px; margin-bottom: 24px; }
+.invite-text strong { color: var(--c-text); }
 
 .invite-role {
-  font-size: 14px;
-  color: #495057;
-  margin-bottom: 32px;
-}
-
-.invite-buttons {
   display: flex;
-  gap: 12px;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-field);
+  margin-bottom: 28px;
 }
+.invite-role__label { font-size: 13px; color: var(--c-text-faint); }
+.invite-role__value { font-size: 14px; color: var(--c-text); font-weight: 600; }
 
-.invite-btn {
-  padding: 12px 32px;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.invite-btn.primary {
-  background: #0d6efd;
-  color: white;
-}
-.invite-btn.primary:hover {
-  background: #0b5ed7;
-}
-
-.invite-btn.secondary {
-  background: #f1f3f5;
-  color: #212529;
-}
-.invite-btn.secondary:hover {
-  background: #e9ecef;
-}
+.invite-actions { display: flex; gap: 12px; }
+.invite-actions .caesar-btn { flex: 1; padding: 13px 18px; }

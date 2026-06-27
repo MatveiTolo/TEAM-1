@@ -12,10 +12,9 @@ interface UserProfileProps {
     projectsCount: number;
   };
   onLogout: () => void;
-  onBack: () => void;
 }
 
-export const UserProfile = ({ user, onLogout, onBack }: UserProfileProps) => {
+export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [username, setUsername] = useState(user.username);
   const [email, setEmail] = useState(user.email);
@@ -48,8 +47,6 @@ export const UserProfile = ({ user, onLogout, onBack }: UserProfileProps) => {
   return (
     <div className="profile-container">
       <div className="profile-card">
-        <button className="profile-back" onClick={onBack}>← Назад</button>
-        
         <div className="profile-avatar">
           <span className="profile-avatar__emoji">👤</span>
         </div>

@@ -219,6 +219,77 @@ namespace CAESAR.Server.Controllers
             return Ok(task);
         }
 
+        [HttpPatch("{id}")]
+        public async Task<IActionResult> UpdateTask(int id, UpdateTaskDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+            int currentUserId = int.Parse(userIdClaim);
+
+            var task = await _context.BoardTasks.FindAsync(id);
+            if (task == null) return NotFound("Запрашиваемая задача не найдена");
+
+            var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+            if (page == null) return NotFound("Запрашиваемая страница не найдена");
+
+            var member = await _context.Members
+                .FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+
+            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
+            if (member.Role == (int)UserRole.Viewer) return StatusCode(403, "Наблюдатели не могут редактировать задачи");
+
+            var changes = new List<string>();
+
+            if (dto.Title != null && dto.Title != task.Title)
+            {
+                changes.Add($"название → '{dto.Title}'");
+                task.Title = dto.Title;
+            }
+
+            if (dto.Description != null && dto.Description != task.Description)
+            {
+                changes.Add("обновлено описание");
+                task.Description = dto.Description;
+            }
+
+            if (dto.Deadline != task.Deadline)
+            {
+                changes.Add(dto.Deadline.HasValue
+                    ? $"дедлайн → {dto.Deadline.Value:dd.MM.yyyy}"
+                    : "дедлайн снят");
+                task.Deadline = dto.Deadline;
+            }
+
+            if (dto.AssignedToId != task.AssignedToId)
+            {
+                changes.Add(dto.AssignedToId.HasValue
+                    ? $"назначен исполнитель #{dto.AssignedToId}"
+                    : "исполнитель снят");
+                task.AssignedToId = dto.AssignedToId;
+            }
+
+            if (changes.Count == 0) return Ok(task);
+
+            task.UpdatedAt = DateTime.UtcNow;
+
+            var history = new BoardTaskHistory
+            {
+                TaskId = task.Id,
+                UserId = currentUserId,
+                ActionType = "Изменена",
+                StatusBefore = task.Status,
+                StatusAfter = task.Status,
+                Details = "Задача отредактирована: " + string.Join(", ", changes) + ".",
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.TaskHistories.Add(history);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(task);
+        }
+
         [HttpGet("{id}/history")]
         public async Task<IActionResult> GetTaskHistory(int id)
         {

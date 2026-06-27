@@ -76,7 +76,6 @@ export const register = async (username: string, email: string, password: string
   });
 
   const text = await response.text();
-  console.log('📥 Ответ сервера (регистрация):', text);
 
   if (response.ok) {
     try {
@@ -133,7 +132,6 @@ export const getTasks = async (pageId?: number) => {
 
   const url = pageId ? `/api/Tasks/page/${pageId}` : '/api/Tasks/page/1';
   
-  console.log('📥 Загрузка задач для страницы:', pageId || 1);
   
   const response = await fetch(url, {
     headers: {
@@ -147,14 +145,13 @@ export const getTasks = async (pageId?: number) => {
   }
 
   const data = await response.json();
-  console.log('✅ Задачи загружены:', data);
   return data;
 };
 
-export const updateTask = async (taskId: number, data: { 
-  title?: string; 
-  description?: string; 
-  deadline?: string | null; 
+export const updateTask = async (taskId: number, data: {
+  title?: string;
+  description?: string;
+  deadline?: string | null;
   assigneeId?: number | null;
   status?: string;
 }) => {
@@ -163,13 +160,21 @@ export const updateTask = async (taskId: number, data: {
     throw new Error('Не авторизован');
   }
 
+  // Бэкенд (UpdateTaskDto) ожидает: title, description, deadline, assignedToId
+  const payload: Record<string, unknown> = {
+    title: data.title,
+    description: data.description,
+    deadline: data.deadline ? data.deadline : null,
+    assignedToId: data.assigneeId ?? null,
+  };
+
   const response = await fetch(`/api/Tasks/${taskId}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -218,45 +223,149 @@ export const getTaskHistory = async (taskId: number) => {
     throw new Error(error || 'Ошибка получения истории');
   }
 
-  return response.json();
+  const raw = await response.json();
+  // Бэкенд (TaskHistoryDto) → формат, который ждёт модалка
+  return (raw || []).map((h: any) => ({
+    user_name: h.username ?? h.user_name ?? 'Система',
+    action: h.details || h.actionType || h.action || 'Действие',
+    old_value: h.statusBeforeName,
+    new_value: h.statusAfterName !== h.statusBeforeName ? h.statusAfterName : undefined,
+    created_at: h.createdAt ?? h.created_at ?? '',
+  }));
 };
 
-// ---- МОК-ЗАГЛУШКА для комментариев (пока) ----
-export const getComments = async (_taskId: number) => {
-  await delay(300);
-  return [
-    { id: 1, user_name: 'Иван Петров', text: 'Первый комментарий', created_at: new Date().toISOString() },
-    { id: 2, user_name: 'Мария Смирнова', text: 'Второй комментарий', created_at: new Date().toISOString() },
-  ];
+// ============================================================
+// 4. КОММЕНТАРИИ / ПОЛЬЗОВАТЕЛИ / ПРОЕКТЫ — РЕАЛЬНЫЙ API
+//    (с мок-фолбэком, чтобы UI оставался демонстрируемым без бэкенда)
+// ============================================================
+
+const authHeaders = (): Record<string, string> => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-// ---- МОК-ЗАГЛУШКИ (пока без реального API) ----
+export const getComments = async (taskId: number) => {
+  try {
+    const response = await fetch(`/api/Tasks/${taskId}/comments`, {
+      headers: { ...authHeaders() },
+    });
+    if (!response.ok) throw new Error('fallback');
+    const raw = await response.json();
+    // Бэкенд (CommentDto) → формат модалки
+    return (raw || []).map((c: any) => ({
+      id: c.id,
+      user_name: c.username ?? c.user_name ?? 'Пользователь',
+      text: c.text ?? '',
+      created_at: c.createdAt ?? c.created_at ?? '',
+    }));
+  } catch {
+    await delay(200);
+    return [];
+  }
+};
+
+export const addComment = async (taskId: number, text: string) => {
+  const response = await fetch(`/api/Tasks/${taskId}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error || 'Ошибка добавления комментария');
+  }
+  const c = await response.json();
+  return {
+    id: c.id,
+    user_name: c.username ?? 'Пользователь',
+    text: c.text ?? text,
+    created_at: c.createdAt ?? new Date().toISOString(),
+  };
+};
+
 export const getUsers = async () => {
-  await delay(300);
-  return MOCK_USERS;
+  try {
+    const response = await fetch('/api/Users', { headers: { ...authHeaders() } });
+    if (!response.ok) throw new Error('fallback');
+    const raw = await response.json();
+    return (raw || []).map((u: any) => ({
+      id: u.id,
+      username: u.username ?? u.userName ?? '',
+      email: u.email ?? '',
+    }));
+  } catch {
+    await delay(200);
+    return MOCK_USERS;
+  }
 };
 
 export const getProjects = async () => {
-  await delay(300);
-  return MOCK_PROJECTS;
+  try {
+    const response = await fetch('/api/Projects', { headers: { ...authHeaders() } });
+    if (!response.ok) throw new Error('fallback');
+    const raw = await response.json();
+    return (raw || []).map((p: any) => ({
+      id: p.id,
+      name: p.name ?? '',
+      theme: p.theme ?? '',
+      role: roleLabel(p.role),
+      createdAt: p.createdAt ? new Date(p.createdAt).toLocaleDateString('ru-RU') : '',
+      tasksCount: p.tasksCount ?? 0,
+    }));
+  } catch {
+    await delay(200);
+    return MOCK_PROJECTS;
+  }
 };
 
 export const createProject = async (data: any) => {
-  await delay(500);
-  const newProject = {
-    id: Date.now(),
-    ...data,
-    createdAt: new Date().toLocaleDateString('ru-RU'),
-    tasksCount: 0,
-    status: 'Активен',
-  };
-  MOCK_PROJECTS.push(newProject);
-  return newProject;
+  try {
+    const response = await fetch('/api/Projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ name: data.name, theme: data.theme }),
+    });
+    if (!response.ok) throw new Error('fallback');
+    const p = await response.json();
+    return {
+      id: p.id,
+      name: p.name ?? data.name,
+      theme: p.theme ?? data.theme ?? '',
+      role: 'Главный администратор',
+      createdAt: p.createdAt ? new Date(p.createdAt).toLocaleDateString('ru-RU') : new Date().toLocaleDateString('ru-RU'),
+      tasksCount: 0,
+    };
+  } catch {
+    await delay(300);
+    const newProject = {
+      id: Date.now(),
+      ...data,
+      createdAt: new Date().toLocaleDateString('ru-RU'),
+      tasksCount: 0,
+      status: 'Активен',
+    };
+    MOCK_PROJECTS.push(newProject);
+    return newProject;
+  }
 };
 
 export const getUserProfile = async (userId: number) => {
-  await delay(300);
-  return { ...MOCK_USER_PROFILE, id: userId };
+  try {
+    const response = await fetch('/api/Users/me', { headers: { ...authHeaders() } });
+    if (!response.ok) throw new Error('fallback');
+    const u = await response.json();
+    return {
+      id: u.id ?? userId,
+      username: u.username ?? u.userName ?? '',
+      email: u.email ?? '',
+      role: 'Участник',
+      createdAt: '—',
+      projectsCount: u.projectsCount ?? 0,
+    };
+  } catch {
+    await delay(200);
+    return { ...MOCK_USER_PROFILE, id: userId };
+  }
 };
 
 export const createTask = async (data: any) => {
@@ -267,11 +376,34 @@ export const createTask = async (data: any) => {
 };
 
 export const updateUser = async (userId: number, data: any) => {
-  await delay(300);
-  const user = MOCK_USERS.find(u => u.id === userId);
-  if (!user) throw new Error('Пользователь не найден');
-  Object.assign(user, data);
-  return user;
+  try {
+    const response = await fetch(`/api/Users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ userName: data.username ?? data.userName, email: data.email }),
+    });
+    if (!response.ok) throw new Error('fallback');
+    return response.json();
+  } catch {
+    await delay(200);
+    const user = MOCK_USERS.find(u => u.id === userId);
+    if (!user) throw new Error('Пользователь не найден');
+    Object.assign(user, data);
+    return user;
+  }
+};
+
+// Числовая роль участника (UserRole) → человекочитаемая подпись
+const roleLabel = (role: number | string | undefined): string => {
+  const map: Record<number, string> = {
+    1: 'Главный администратор',
+    2: 'Администратор страницы',
+    3: 'Разработчик',
+    4: 'Тестировщик',
+    5: 'Наблюдатель',
+  };
+  if (typeof role === 'number') return map[role] ?? 'Участник';
+  return (role as string) || 'Участник';
 };
 
 // ---- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----

@@ -1,14 +1,15 @@
+/* ===== CreateTaskModal — тёмная имперская тема ===== */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  padding: 20px;
   animation: fadeIn 0.2s ease;
 }
 
@@ -18,54 +19,55 @@
 }
 
 .modal {
-  background: white;
-  border-radius: 12px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-panel);
   padding: 28px;
   max-width: 520px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  box-shadow: 0 24px 64px -12px rgba(0,0,0,0.8);
   animation: slideUp 0.3s ease;
 }
 
 @keyframes slideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 .modal__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .modal__header h2 {
   margin: 0;
+  font-family: var(--font-display);
   font-size: 22px;
-  color: #212529;
+  letter-spacing: 0.04em;
+  color: var(--c-text);
 }
 
 .modal__close {
   background: none;
   border: none;
   font-size: 24px;
+  line-height: 1;
   cursor: pointer;
-  color: #6c757d;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.2s;
+  color: var(--c-text-muted);
+  padding: 4px 10px;
+  border-radius: 10px;
+  transition: background 0.2s, color 0.2s;
 }
 
 .modal__close:hover {
-  background: #f1f3f5;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--c-text);
 }
 
 .modal__form {
@@ -74,138 +76,127 @@
   gap: 16px;
 }
 
-.form-group {
+/* Scoped под .modal, чтобы не конфликтовать с глобальным .form-group из ProjectSetup */
+.modal .form-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.form-group label {
-  font-size: 14px;
+.modal .form-group label {
+  font-size: 13px;
   font-weight: 600;
-  color: #495057;
+  letter-spacing: 0.02em;
+  color: var(--c-text-muted);
 }
 
-.form-group input,
-.form-group textarea,
-.form-group select {
-  padding: 10px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 8px;
+.modal .form-group input,
+.modal .form-group textarea,
+.modal .form-group select {
+  padding: 11px 14px;
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-field);
   font-size: 14px;
-  transition: border-color 0.2s;
+  color: var(--c-text);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
+.modal .form-group input::placeholder,
+.modal .form-group textarea::placeholder {
+  color: var(--c-text-faint);
+}
+
+.modal .form-group select option {
+  background: #141414;
+  color: var(--c-text);
+}
+
+.modal .form-group input:focus,
+.modal .form-group textarea:focus,
+.modal .form-group select:focus {
   outline: none;
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
 }
 
-.form-group input.error,
-.form-group textarea.error {
-  border-color: #dc3545;
+.modal .form-group input.error,
+.modal .form-group textarea.error {
+  border-color: var(--c-danger);
 }
 
-.error-message {
+.modal .error-message {
   font-size: 12px;
-  color: #dc3545;
+  color: var(--c-danger);
 }
 
-.form-row {
+.modal .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 14px;
 }
 
 .modal__actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .btn-primary {
-  padding: 10px 24px;
-  background: #0d6efd;
-  color: white;
+  padding: 11px 26px;
+  background: linear-gradient(135deg, #fff, #e8e8e8);
+  color: #0a0a0a;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #0b5ed7;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(255, 255, 255, 0.12);
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .btn-secondary {
-  padding: 10px 24px;
-  background: #f1f3f5;
-  color: #495057;
-  border: none;
-  border-radius: 8px;
+  padding: 11px 26px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .btn-secondary:hover {
-  background: #e9ecef;
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Телефоны */
 @media (max-width: 768px) {
-  .modal {
-    padding: 20px;
-    max-width: 95%;
-    margin: 10px;
-  }
-
-  .modal__header h2 {
-    font-size: 18px;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .modal__actions {
-    flex-direction: column-reverse;
-  }
-
-  .modal__actions button {
-    width: 100%;
-  }
+  .modal { padding: 22px; max-width: 95%; }
+  .modal__header h2 { font-size: 19px; }
+  .modal .form-row { grid-template-columns: 1fr; }
+  .modal__actions { flex-direction: column-reverse; }
+  .modal__actions button { width: 100%; }
 }
 
-/* Маленькие телефоны */
 @media (max-width: 480px) {
-  .modal {
-    padding: 16px;
-    max-width: 100%;
-    border-radius: 8px;
-  }
-
-  .modal__header h2 {
-    font-size: 16px;
-  }
-
-  .form-group input,
-  .form-group textarea,
-  .form-group select {
-    font-size: 13px;
-    padding: 8px 10px;
-  }
+  .modal { padding: 18px; border-radius: 18px; }
+  .modal__header h2 { font-size: 17px; }
+  .modal .form-group input,
+  .modal .form-group textarea,
+  .modal .form-group select { font-size: 13px; padding: 9px 12px; }
 }

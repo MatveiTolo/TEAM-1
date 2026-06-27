@@ -17,7 +17,7 @@ interface BoardProps {
 }
 
 export const Board = ({ pageId = 1 }: BoardProps) => {
-  const { tasks, loading, error, getTasksByStatus, moveTask, createTask } = useTasks(pageId);
+  const { tasks, loading, error, getTasksByStatus, moveTask, createTask, loadTasks } = useTasks(pageId);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -28,12 +28,12 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
     setIsDetailsOpen(true);
   };
 
-  const handleTaskUpdated = (updatedTask: Task) => {
-    console.log('Задача обновлена:', updatedTask);
+  const handleTaskUpdated = (_updatedTask: Task) => {
+    loadTasks();
   };
 
-  const handleTaskDeleted = (taskId: number) => {
-    console.log('Задача удалена:', taskId);
+  const handleTaskDeleted = (_taskId: number) => {
+    loadTasks();
   };
 
   const handleDragStart = (event: DragStartEvent) => {

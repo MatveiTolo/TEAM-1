@@ -6,7 +6,6 @@ export const GlassCard3D = () => {
 
   const handleSend = () => {
     if (!inputValue.trim()) return;
-    console.log('Запрос к AI:', inputValue);
     setInputValue('');
     // Здесь будет вызов вашего AI в будущем
   };

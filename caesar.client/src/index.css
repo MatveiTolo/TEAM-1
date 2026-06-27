@@ -1,7 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
-
 /* ============================================================
-   ГЛОБАЛЬНЫЕ СТИЛИ — античный / мраморный стиль
+   ГЛОБАЛЬНЫЕ СТИЛИ — тёмная имперская база (CAESAR)
+   Базовые правила; страницы Login/Register/Landing задают
+   собственные обёртки (#0a0a0a) и не зависят от этих стилей.
    ============================================================ */
 
 * {
@@ -15,113 +15,75 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #f5f0eb;
-  color: #1a1a1a;
+  font-family: var(--font-body, 'Inter', system-ui, -apple-system, sans-serif);
+  background: var(--c-bg, #0a0a0a);
+  color: var(--c-text, #ffffff);
   min-height: 100vh;
   line-height: 1.6;
 }
 
-/* ---------- ЗАГОЛОВКИ (античный стиль) ---------- */
+/* ---------- ЗАГОЛОВКИ ---------- */
 h1, h2, h3, h4, h5 {
-  font-family: 'Playfair Display', serif;
-  font-weight: 400;
-  letter-spacing: 0.5px;
-  color: #1a1a1a;
+  font-family: var(--font-display, 'Cinzel', serif);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--c-text, #ffffff);
 }
 
 /* ---------- КНОПКИ ---------- */
 button {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-body, 'Inter', system-ui, sans-serif);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
 }
 
 /* ---------- ССЫЛКИ ---------- */
 a {
-  color: #1a1a1a;
+  color: var(--c-text, #ffffff);
   text-decoration: none;
-  transition: color 0.3s ease;
+  transition: color 0.25s ease;
 }
 
 a:hover {
-  color: #C9A94E;
+  color: rgba(255, 255, 255, 0.7);
 }
 
-/* ---------- УТИЛИТЫ ---------- */
-.text-gold {
-  color: #C9A94E;
-}
-
-.border-gold {
-  border-color: #C9A94E;
-}
-
-.bg-marble {
-  background: #f5f0eb;
-}
-
-.bg-white-card {
-  background: #ffffff;
+/* ---------- ПОЛЯ ВВОДА (база) ---------- */
+input, textarea, select {
+  font-family: var(--font-body, 'Inter', system-ui, sans-serif);
+  transition: all 0.25s ease;
 }
 
 /* ---------- СКРОЛЛ ---------- */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f0ebe5;
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #C9A94E;
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #b8973a;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* ---------- ВЫДЕЛЕНИЕ ТЕКСТА ---------- */
 ::selection {
-  background: #C9A94E;
-  color: #fff;
-}
-
-/* ---------- КАРТОЧКИ (общий стиль) ---------- */
-.card {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-/* ---------- ПОЛЯ ВВОДА (общий стиль) ---------- */
-input, textarea, select {
-  font-family: 'Inter', system-ui, sans-serif;
-  transition: all 0.3s ease;
-}
-
-input:focus, textarea:focus, select:focus {
-  outline: none;
-  border-color: #C9A94E;
-  box-shadow: 0 0 0 4px rgba(201, 169, 78, 0.1);
+  background: rgba(255, 255, 255, 0.85);
+  color: #0a0a0a;
 }
 
 /* ---------- АНИМАЦИИ ---------- */
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeIn {

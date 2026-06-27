@@ -30,12 +30,10 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
     try {
       if (showLoading) setLoading(true);
       setError('');
-      console.log('📦 Запрашиваю список проектов с бэкенда (реальные данные)...');
       
       // ВАЖНО: Это реальный вызов API. Моков больше нет.
       const data = await api.getProjects();
       
-      console.log('✅ Проекты получены с сервера:', data);
       setProjects(data);
     } catch (err: any) {
       console.error('❌ Ошибка загрузки проектов:', err);
@@ -57,7 +55,6 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
         if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
         
         reloadTimerRef.current = setTimeout(() => {
-          console.log('🔙 Обнаружен возврат на страницу проектов. Принудительно обновляю данные...');
           loadProjects(false);
         }, 300);
       }

@@ -22,6 +22,19 @@ namespace CAESAR.Server
 
             builder.Services.AddControllers();
             builder.Services.AddOpenApi();
+
+            // CORS для дев-окружения (Vite-клиент на localhost)
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("ClientDev", policy =>
+                {
+                    policy.SetIsOriginAllowed(_ => true)
+                          .AllowAnyHeader()
+                          .AllowAnyMethod()
+                          .AllowCredentials();
+                });
+            });
+
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
             builder.Services.AddAuthentication(options =>
@@ -64,9 +77,14 @@ namespace CAESAR.Server
                 app.MapOpenApi();
 
                 app.MapScalarApiReference();
-            }
 
-            app.UseHttpsRedirection();
+                app.UseCors("ClientDev");
+            }
+            else
+            {
+                // HTTPS-редирект только вне разработки, чтобы не ломать Vite-прокси (http://localhost:5254)
+                app.UseHttpsRedirection();
+            }
 
             app.UseAuthentication();
             app.UseAuthorization();

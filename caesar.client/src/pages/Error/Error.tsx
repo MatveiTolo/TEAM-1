@@ -1,36 +1,34 @@
 import './Error.css';
 
 interface ErrorProps {
-  code?: 403 | 404;
+  code?: 403 | 404 | 500;
   message?: string;
   onGoHome: () => void;
 }
 
+const TITLES: Record<number, string> = {
+  403: 'Доступ запрещён',
+  404: 'Страница не найдена',
+  500: 'Что-то пошло не так',
+};
+
+const MESSAGES: Record<number, string> = {
+  403: 'У вас нет прав для просмотра этой страницы.',
+  404: 'Такой страницы не существует или она была перемещена.',
+  500: 'Произошла ошибка на сервере. Попробуйте позже.',
+};
+
 export const Error = ({ code = 404, message, onGoHome }: ErrorProps) => {
-  const defaultMessages = {
-    403: 'У вас нет доступа к этой странице.',
-    404: 'Страница не найдена.'
-  };
-
-  const titles = {
-    403: 'Доступ запрещён',
-    404: 'Страница не найдена'
-  };
-
   return (
-    <div className="error-container">
-      <div className="card" style={{ maxWidth: 480, width: '100%', textAlign: 'center', padding: 40 }}>
-        <div style={{ fontSize: 72, fontWeight: 800, color: '#0d6efd', lineHeight: 1, marginBottom: 8 }}>
-          {code}
-        </div>
-        <h2 style={{ marginBottom: 8 }}>{titles[code]}</h2>
-        <p style={{ color: '#6c757d', marginBottom: 24 }}>
-          {message || defaultMessages[code]}
-        </p>
-        <button className="btn-primary" onClick={onGoHome}>На главную</button>
-        <div style={{ marginTop: 24, fontSize: 13, color: '#adb5bd' }}>
-          🧪 ЗАГЛУШКА — страница ошибки
-        </div>
+    <div className="error-page caesar-scope">
+      <div className="caesar-bg" />
+      <div className="error-card">
+        <div className="error-code">{code}</div>
+        <h1 className="error-title">{TITLES[code]}</h1>
+        <p className="error-text">{message || MESSAGES[code]}</p>
+        <button className="caesar-btn caesar-btn--primary" onClick={onGoHome}>
+          Вернуться на главную
+        </button>
       </div>
     </div>
   );
