@@ -167,7 +167,7 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
             <div className="register-image__wrapper">
               <div className="register-image__glow"></div>
               <img 
-                src="/attachments/Регистрация.jpg" 
+                src="/attachments/Скульптор.png" 
                 alt="Скульптор" 
                 className="register-image__img" 
               />
