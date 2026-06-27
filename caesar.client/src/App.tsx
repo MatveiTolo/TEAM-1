@@ -33,27 +33,46 @@ function App() {
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
+        console.log('📥 Загрузка текущего пользователя...');
         const response = await api.getCurrentUser();
+        console.log('✅ Пользователь загружен:', response.data);
         setCurrentUser(response.data);
       } catch (error) {
-        console.error('Ошибка загрузки пользователя:', error);
+        console.error('❌ Ошибка загрузки пользователя:', error);
       }
     };
     
     const token = localStorage.getItem('caesar_token');
+    console.log('🔑 Токен при монтировании:', token ? 'присутствует' : 'отсутствует');
     if (token) {
       loadCurrentUser();
     }
   }, [api]);
 
-  const handleLogin = () => {
+  const handleLogin = (username: string) => {
+    console.log('👤 handleLogin вызван с username:', username);
+    
+    // Проверяем, что токен сохранился
+    const token = localStorage.getItem('caesar_token');
+    console.log('🔑 Токен в handleLogin:', token ? 'присутствует' : 'отсутствует');
+    
+    if (!token) {
+      console.warn('⚠️ Токен отсутствует после входа!');
+      // Если токена нет, перенаправляем на логин
+      setCurrentScreen('login');
+      return;
+    }
+    
+    // Загружаем данные пользователя
     api.getCurrentUser()
       .then(response => {
+        console.log('✅ Данные пользователя загружены:', response.data);
         setCurrentUser(response.data);
         setCurrentScreen('projects');
       })
       .catch(error => {
-        console.error('Ошибка загрузки пользователя после входа:', error);
+        console.error('❌ Ошибка загрузки пользователя после входа:', error);
+        // Даже при ошибке переходим на проекты
         setCurrentScreen('projects');
       });
   };

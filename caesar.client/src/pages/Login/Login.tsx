@@ -26,11 +26,45 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
 
     try {
       setLoading(true);
+      console.log('📤 Отправка запроса на вход:', { email });
+      
       const response = await api.login(email, password);
-      console.log('✅ Вход выполнен:', response);
-      onLogin(response.username || email);
+      console.log('✅ Ответ от сервера:', response);
+      
+      // ====== ВАЖНО: Сохраняем токен! ======
+      if (response.token) {
+        localStorage.setItem('caesar_token', response.token);
+        console.log('✅ Токен сохранен в localStorage');
+      } else {
+        console.warn('⚠️ Токен отсутствует в ответе сервера');
+        setError('Ошибка: токен не получен от сервера');
+        return;
+      }
+      
+      // Проверяем, что токен сохранился
+      const token = localStorage.getItem('caesar_token');
+      console.log('🔑 Токен в localStorage:', token ? 'присутствует' : 'отсутствует');
+      
+      // Получаем имя пользователя из ответа
+      const username = response.username || response.userName || email.split('@')[0] || 'Пользователь';
+      
+      // Вызываем onLogin для перехода на страницу проектов
+      onLogin(username);
+      
     } catch (err: any) {
-      setError(err.message || 'Ошибка входа');
+      console.error('❌ Ошибка входа:', err);
+      
+      if (err.response) {
+        console.error('📋 Детали ошибки:', {
+          status: err.response.status,
+          data: err.response.data,
+        });
+        setError(err.response.data?.message || err.response.data?.title || `Ошибка ${err.response.status}`);
+      } else if (err.request) {
+        setError('Сервер не отвечает. Проверьте подключение.');
+      } else {
+        setError(err.message || 'Ошибка входа');
+      }
     } finally {
       setLoading(false);
     }
