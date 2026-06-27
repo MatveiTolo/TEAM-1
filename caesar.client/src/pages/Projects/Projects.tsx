@@ -1,15 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../../context/ApiContext';
 import './Projects.css';
 
+// Определяем интерфейс проекта локально, так как в types/index.ts нет экспорта Project
 interface Project {
   id: number;
   name: string;
-  theme: string;
-  createdAt: string;
-  role: string;
-  tasksCount: number;
-  status?: string;
+  theme?: string;
+  role?: string;
+  createdAt?: string;
+  created_at?: string;
+  tasksCount?: number;
 }
 
 interface ProjectsProps {
@@ -22,56 +23,28 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const api = useApi();
-  
-  // ИСПРАВЛЕННАЯ СТРОКА (заменили NodeJS.Timeout на any)
-  const reloadTimerRef = useRef<any | null>(null);
 
-  const loadProjects = useCallback(async (showLoading = true) => {
+  const loadProjects = useCallback(async () => {
     try {
-      if (showLoading) setLoading(true);
+      setLoading(true);
       setError('');
       
-      // ВАЖНО: Это реальный вызов API. Моков больше нет.
-      const data = await api.getProjects();
+      const response = await api.getProjects();
+      const data = response.data || [];
       
       setProjects(data);
     } catch (err: any) {
       console.error('❌ Ошибка загрузки проектов:', err);
       setError(err.message || 'Ошибка загрузки проектов');
+      setProjects([]);
     } finally {
-      if (showLoading) setLoading(false);
+      setLoading(false);
     }
   }, [api]);
 
-  // Загрузка при первом заходе
+  // Загрузка при монтировании
   useEffect(() => {
     loadProjects();
-  }, [loadProjects]);
-
-  // Ловушка на возврат (стрелочка назад и свайпы)
-  useEffect(() => {
-    const handleLocationChange = () => {
-      if (document.visibilityState === 'visible') {
-        if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
-        
-        reloadTimerRef.current = setTimeout(() => {
-          loadProjects(false);
-        }, 300);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleLocationChange);
-    window.addEventListener('popstate', () => {
-      if (document.visibilityState === 'visible') {
-        handleLocationChange();
-      }
-    });
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleLocationChange);
-      window.removeEventListener('popstate', handleLocationChange);
-      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
-    };
   }, [loadProjects]);
 
   const handleCreateProject = () => {
@@ -80,7 +53,7 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
     }
   };
 
-  if (loading && projects.length === 0) {
+  if (loading) {
     return (
       <div className="projects-container">
         <div className="projects-loading">Загрузка проектов...</div>
@@ -108,10 +81,6 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
         </button>
       </div>
 
-      {loading && projects.length > 0 && (
-        <div className="projects-updating">🔄 Обновление списка...</div>
-      )}
-
       {projects.length === 0 ? (
         <div className="projects-empty">
           <p>У вас пока нет проектов</p>
@@ -128,21 +97,16 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
               onClick={() => onSelectProject(project.id)}
             >
               <div className="project-card__header">
-                <span className="project-card__theme">{project.theme}</span>
-                <span className="project-card__role">{project.role}</span>
+                {project.theme && (
+                  <span className="project-card__theme">{project.theme}</span>
+                )}
+                <span className="project-card__role">{project.role || 'Участник'}</span>
               </div>
               <h3 className="project-card__name">{project.name}</h3>
               <div className="project-card__stats">
-                <span>📅 {project.createdAt}</span>
-                <span>📌 {project.tasksCount} задач</span>
+                <span>📅 {project.createdAt || project.created_at || '—'}</span>
+                <span>📌 {project.tasksCount || 0} задач</span>
               </div>
-              {project.status && (
-                <div className="project-card__status">
-                  <span className={`status-badge ${project.status === 'Активен' ? 'active' : 'archived'}`}>
-                    {project.status}
-                  </span>
-                </div>
-              )}
               <div className="project-card__footer">
                 <span className="project-card__enter">Перейти →</span>
               </div>

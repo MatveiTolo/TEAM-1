@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Task, TaskStatus } from '../types';
-import { getTasks as getTasksApi } from '../services/mockApi';
+import { api } from '../services/api';
 
 // ---- Сопоставление статусов фронта (строки) и бэка (enum BoardTaskStatus 1..4) ----
 const STATUS_TO_INT: Record<TaskStatus, number> = {
@@ -18,16 +18,10 @@ const INT_TO_STATUS: Record<number, TaskStatus> = {
 };
 
 /**
- * Приводит «сырую» задачу из бэкенда (camelCase, status — число) к фронтовому типу Task (snake_case).
- * Если объект уже во фронтовом формате (mock), возвращаем как есть.
+ * Приводит «сырую» задачу из бэкенда (camelCase, status — число) к фронтовому типу Task (snake_case)
  */
 export const normalizeTask = (raw: any): Task => {
   if (!raw) return raw;
-
-  // Уже нормализованная mock-задача (status — строка, есть page_id)
-  if (typeof raw.status === 'string' && 'page_id' in raw) {
-    return raw as Task;
-  }
 
   const statusValue: TaskStatus =
     typeof raw.status === 'number'
@@ -56,10 +50,16 @@ export const useTasks = (pageId?: number) => {
   const [error, setError] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
+    if (!pageId) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await getTasksApi(pageId);
-      setTasks((data || []).map(normalizeTask));
+      const response = await api.getTasksByPage(pageId);
+      setTasks((response.data || []).map(normalizeTask));
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Ошибка загрузки задач');
@@ -81,36 +81,50 @@ export const useTasks = (pageId?: number) => {
   const createTask = useCallback(
     async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => {
       try {
-        const token = localStorage.getItem('caesar_token');
+        // ФОРМАТИРОВАНИЕ ДАТЫ В UTC (для PostgreSQL timestamp with time zone)
+        let deadlineValue = null;
+        if (taskData.deadline) {
+          // Парсим дату как UTC
+          const date = new Date(taskData.deadline);
+          if (!isNaN(date.getTime())) {
+            // Преобразуем в UTC строку (формат ISO с Z на конце)
+            deadlineValue = date.toISOString();
+          } else {
+            deadlineValue = taskData.deadline;
+          }
+        }
 
-        // Бэкенд ожидает CreateTaskDto: { projectPageId, title, description, deadline }
         const payload = {
           projectPageId: taskData.page_id ?? pageId ?? 1,
           title: taskData.title,
           description: taskData.description ?? '',
-          deadline: taskData.deadline ? taskData.deadline : null,
+          deadline: deadlineValue, // Отправляем в UTC формате (например, "2026-06-27T00:00:00.000Z")
         };
 
-        const response = await fetch('/api/Tasks', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
+        console.log('📤 Отправка запроса на создание задачи:', JSON.stringify(payload, null, 2));
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText || 'Ошибка создания задачи');
-        }
+        const response = await api.createTask(payload);
+        console.log('✅ Ответ от сервера:', response.data);
 
-        const newTask = normalizeTask(await response.json());
+        const newTask = normalizeTask(response.data);
         setTasks(prev => [...prev, newTask]);
         return newTask;
-      } catch (err) {
-        console.error('Ошибка создания задачи:', err);
-        throw err;
+      } catch (err: any) {
+        console.error('❌ Ошибка создания задачи:', err);
+        
+        if (err.response) {
+          console.error('📋 Детали ошибки:', {
+            status: err.response.status,
+            data: err.response.data,
+          });
+          
+          const serverMessage = err.response.data?.message || err.response.data?.title || err.response.data;
+          throw new Error(`Ошибка сервера (${err.response.status}): ${serverMessage || 'Неизвестная ошибка'}`);
+        } else if (err.request) {
+          throw new Error('Сервер не отвечает. Проверьте подключение.');
+        } else {
+          throw new Error(err.message || 'Ошибка при создании задачи');
+        }
       }
     },
     [pageId]
@@ -119,36 +133,21 @@ export const useTasks = (pageId?: number) => {
   const moveTask = useCallback(
     async (taskId: number, newStatus: TaskStatus) => {
       try {
-        const token = localStorage.getItem('caesar_token');
-
-        // Позиция в конце целевой колонки
         const newPosition = tasks.filter(t => t.status === newStatus).length;
 
-        // Бэкенд ожидает MoveTaskDto: { targetTaskStatus (enum int 1..4), newPosition }
         const payload = {
           targetTaskStatus: STATUS_TO_INT[newStatus],
           newPosition,
         };
 
-        const response = await fetch(`/api/Tasks/${taskId}/move`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
+        console.log('📤 Перемещение задачи:', { taskId, payload });
 
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(errText || 'Ошибка перемещения задачи');
-        }
-
-        const updated = normalizeTask(await response.json());
+        const response = await api.moveTask(taskId, payload);
+        const updated = normalizeTask(response.data);
         setTasks(prev => prev.map(t => (t.id === taskId ? updated : t)));
         return updated;
-      } catch (err) {
-        console.error('Ошибка перемещения задачи:', err);
+      } catch (err: any) {
+        console.error('❌ Ошибка перемещения задачи:', err);
         throw err;
       }
     },

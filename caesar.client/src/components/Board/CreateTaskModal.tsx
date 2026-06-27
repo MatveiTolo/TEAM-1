@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { Task } from '../../types';
+import type { Task, User } from '../../types';
+import { api } from '../../services/api';
 import './CreateTaskModal.css';
 
 // Схема валидации
@@ -21,27 +23,73 @@ interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreate: (data: Omit<Task, 'id' | 'created_at' | 'updated_at'>) => Promise<Task>;
+  pageId?: number;
+  userId?: number;
 }
 
-export const CreateTaskModal = ({ isOpen, onClose, onCreate }: CreateTaskModalProps) => {
+export const CreateTaskModal = ({ 
+  isOpen, 
+  onClose, 
+  onCreate, 
+  pageId = 1,
+  userId = 1 
+}: CreateTaskModalProps) => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
       status: 'preparation',
-      page_id: 1,
-      created_by: 1,
+      page_id: pageId,
+      created_by: userId,
       assignee_id: null,
       deadline: null,
     }
   });
 
-  const onSubmit = async (data: TaskFormData) => {
+  // Загрузка пользователей с сервера
+  useEffect(() => {
+    if (isOpen) {
+      fetchUsers();
+      setSubmitError(null);
+    }
+  }, [isOpen]);
+
+  const fetchUsers = async () => {
     try {
-      await onCreate(data as Omit<Task, 'id' | 'created_at' | 'updated_at'>);
+      setLoadingUsers(true);
+      const response = await api.getUsers();
+      setUsers(response.data || []);
+    } catch (error) {
+      console.error('Ошибка загрузки пользователей:', error);
+      setUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const onSubmit = async (data: TaskFormData) => {
+    setSubmitError(null);
+    
+    try {
+      console.log('📤 Отправка данных задачи:', data);
+      
+      const taskData = {
+        ...data,
+        page_id: pageId,
+        created_by: userId,
+      };
+      
+      const result = await onCreate(taskData as Omit<Task, 'id' | 'created_at' | 'updated_at'>);
+      console.log('✅ Задача создана:', result);
+      
       reset();
       onClose();
-    } catch (error) {
-      console.error('Ошибка создания задачи:', error);
+    } catch (error: any) {
+      console.error('❌ Ошибка создания задачи:', error);
+      setSubmitError(error.message || 'Не удалось создать задачу. Попробуйте снова.');
     }
   };
 
@@ -56,6 +104,12 @@ export const CreateTaskModal = ({ isOpen, onClose, onCreate }: CreateTaskModalPr
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="modal__form">
+          {submitError && (
+            <div className="form-error" style={{ color: 'red', marginBottom: '16px', padding: '8px', background: '#ffeeee', borderRadius: '4px' }}>
+              ❌ {submitError}
+            </div>
+          )}
+
           <div className="form-group">
             <label htmlFor="title">Название *</label>
             <input
@@ -63,6 +117,7 @@ export const CreateTaskModal = ({ isOpen, onClose, onCreate }: CreateTaskModalPr
               type="text"
               {...register('title')}
               className={errors.title ? 'error' : ''}
+              placeholder="Введите название задачи"
             />
             {errors.title && <span className="error-message">{errors.title.message}</span>}
           </div>
@@ -73,6 +128,7 @@ export const CreateTaskModal = ({ isOpen, onClose, onCreate }: CreateTaskModalPr
               id="description"
               rows={3}
               {...register('description')}
+              placeholder="Введите описание задачи"
             />
           </div>
 
@@ -101,14 +157,20 @@ export const CreateTaskModal = ({ isOpen, onClose, onCreate }: CreateTaskModalPr
             <label htmlFor="assignee_id">Исполнитель</label>
             <select id="assignee_id" {...register('assignee_id', { valueAsNumber: true })}>
               <option value="">Не назначен</option>
-              <option value="1">Иван Петров</option>
-              <option value="2">Мария Смирнова</option>
-              <option value="3">Алексей Иванов</option>
+              {loadingUsers ? (
+                <option disabled>Загрузка...</option>
+              ) : (
+                users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.username || user.email}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
           <div className="modal__actions">
-            <button type="button" onClick={onClose} className="btn-secondary">
+            <button type="button" onClick={onClose} className="btn-secondary" disabled={isSubmitting}>
               Отмена
             </button>
             <button type="submit" disabled={isSubmitting} className="btn-primary">

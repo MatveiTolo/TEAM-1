@@ -5,7 +5,41 @@ import type { Task, TaskStatus } from '../../types';
 import { getDeadlineStatus, formatDate } from '../../utils/dateHelpers';
 import './Reports.css';
 
-export const Reports = () => {
+// Маппинг статусов из чисел в строки (если бэкенд возвращает числа)
+const INT_TO_STATUS: Record<number, string> = {
+  1: 'preparation',
+  2: 'execution',
+  3: 'testing',
+  4: 'done',
+};
+
+// Нормализация задачи для отчетов
+const normalizeTaskForReports = (raw: any): Task => {
+  const statusValue = typeof raw.status === 'number' 
+    ? INT_TO_STATUS[raw.status] || 'preparation'
+    : raw.status || 'preparation';
+  
+  return {
+    id: raw.id,
+    title: raw.title || '',
+    description: raw.description || '',
+    status: statusValue as TaskStatus,
+    deadline: raw.deadline || null,
+    created_by: raw.createdById || raw.created_by || 0,
+    assignee_id: raw.assignedToId || raw.assignee_id || null,
+    assignee_name: raw.assignedToName || raw.assignee_name || null,
+    page_id: raw.projectPageId || raw.page_id || 0,
+    position: raw.position || 0,
+    created_at: raw.createdAt || raw.created_at || '',
+    updated_at: raw.updatedAt || raw.updated_at || '',
+  };
+};
+
+interface ReportsProps {
+  pageId?: number;
+}
+
+export const Reports = ({ pageId = 1 }: ReportsProps) => {
   const api = useApi();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState('');
@@ -13,22 +47,49 @@ export const Reports = () => {
 
   useEffect(() => {
     let active = true;
-    api.getTasks(1)
-      .then((data) => { if (active) setTasks(data as Task[]); })
-      .catch((e: any) => { if (active) setError(e.message || 'Не удалось загрузить задачи'); })
-      .finally(() => { if (active) setLoading(false); });
+    setLoading(true);
+    
+    api.getTasksByPage(pageId)
+      .then((response: any) => { 
+        if (active) {
+          const normalizedTasks = (response.data || []).map(normalizeTaskForReports);
+          setTasks(normalizedTasks);
+          setError('');
+        }
+      })
+      .catch((e: any) => { 
+        if (active) {
+          setError(e.message || 'Не удалось загрузить задачи');
+          setTasks([]);
+        }
+      })
+      .finally(() => { 
+        if (active) setLoading(false); 
+      });
+      
     return () => { active = false; };
-  }, [api]);
+  }, [api, pageId]);
 
   const stats = useMemo(() => {
-    const byStatus: Record<TaskStatus, number> = { preparation: 0, execution: 0, testing: 0, done: 0 };
+    const byStatus: Record<TaskStatus, number> = { 
+      preparation: 0, 
+      execution: 0, 
+      testing: 0, 
+      done: 0 
+    };
     let overdue = 0, soon = 0;
+    
     for (const t of tasks) {
-      if (t.status in byStatus) byStatus[t.status as TaskStatus]++;
+      const status = t.status as TaskStatus;
+      if (status in byStatus) {
+        byStatus[status]++;
+      }
+      
       const ds = getDeadlineStatus(t.deadline);
       if (ds === 'expired') overdue++;
       if (ds === 'soon') soon++;
     }
+    
     const total = tasks.length;
     const donePct = total ? Math.round((byStatus.done / total) * 100) : 0;
     return { byStatus, overdue, soon, total, donePct };
@@ -37,7 +98,11 @@ export const Reports = () => {
   const upcoming = useMemo(() => {
     return tasks
       .filter((t) => t.deadline && t.status !== 'done')
-      .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+      .sort((a, b) => {
+        const dateA = new Date(a.deadline!).getTime();
+        const dateB = new Date(b.deadline!).getTime();
+        return dateA - dateB;
+      })
       .slice(0, 6);
   }, [tasks]);
 
@@ -78,7 +143,7 @@ export const Reports = () => {
               {(Object.keys(STATUS_LABELS) as TaskStatus[])
                 .sort((a, b) => STATUS_ORDER[a] - STATUS_ORDER[b])
                 .map((s) => {
-                  const count = stats.byStatus[s];
+                  const count = stats.byStatus[s] || 0;
                   const pct = stats.total ? (count / stats.total) * 100 : 0;
                   return (
                     <div key={s} className="rep-bar">

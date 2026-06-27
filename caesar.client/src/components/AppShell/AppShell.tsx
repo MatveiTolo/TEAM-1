@@ -14,7 +14,6 @@ interface AppShellProps {
   onNavigate: (screen: string) => void;
   onLogout: () => void;
   active?: string;
-  isMock?: boolean;
   children: ReactNode;
   /** Hide the full nav (e.g. on focused flows like project setup). */
   minimalNav?: boolean;
@@ -37,7 +36,7 @@ const NAV: NavItem[] = [
 
 export const AppShell = ({
   title, subtitle, onBack, onNavigate, onLogout, active,
-  isMock = false, children, minimalNav = false,
+  children, minimalNav = false,
 }: AppShellProps) => {
   return (
     <div className="shell caesar-scope">
@@ -94,13 +93,6 @@ export const AppShell = ({
       </header>
 
       <main className="shell-content">{children}</main>
-
-      {isMock && (
-        <div className="shell-mock" title="Часть данных пока на заглушках">
-          <span className="shell-mock__dot" />
-          Демо-режим
-        </div>
-      )}
     </div>
   );
 };

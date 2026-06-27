@@ -1,30 +1,44 @@
 import { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
-import * as mockApi from '../services/mockApi';
+import * as apiService from '../services/api';
 
 export interface ApiService {
-  getUsers: typeof mockApi.getUsers;
-  updateUser: typeof mockApi.updateUser;
-  getProjects: typeof mockApi.getProjects;
-  createProject: typeof mockApi.createProject;
-  getUserProfile: typeof mockApi.getUserProfile;
-  getTasks: typeof mockApi.getTasks;
-  login: typeof mockApi.login;
-  register: typeof mockApi.register;
-  updateProfile: typeof mockApi.updateProfile;
-  updateTask: typeof mockApi.updateTask;
-  deleteTask: typeof mockApi.deleteTask;
-  getTaskHistory: typeof mockApi.getTaskHistory;
-  getComments: typeof mockApi.getComments;
-  addComment: typeof mockApi.addComment;
-  isMockMode: boolean;
+  // Auth
+  login: typeof apiService.login;
+  register: typeof apiService.register;
+  
+  // Users
+  getUsers: typeof apiService.getUsers;
+  getCurrentUser: typeof apiService.getCurrentUser;
+  updateProfile: typeof apiService.updateProfile;
+  updateUser: typeof apiService.updateUser;
+  deleteUser: typeof apiService.deleteUser;
+  bindNotification: typeof apiService.bindNotification;
+  
+  // Projects
+  getProjects: typeof apiService.getProjects;
+  createProject: typeof apiService.createProject;
+  
+  // Project Pages
+  getProjectPages: typeof apiService.getProjectPages;
+  createProjectPage: typeof apiService.createProjectPage;
+  
+  // Tasks
+  getTasksByPage: typeof apiService.getTasksByPage;
+  createTask: typeof apiService.createTask;
+  moveTask: typeof apiService.moveTask;
+  updateTask: typeof apiService.updateTask;
+  deleteTask: typeof apiService.deleteTask;
+  getTaskHistory: typeof apiService.getTaskHistory;
+  createComment: typeof apiService.createComment;
+  getComments: typeof apiService.getComments;
 }
 
 const ApiContext = createContext<ApiService | null>(null);
 
 export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const api: ApiService = {
-    ...mockApi,
+    ...apiService,
   };
 
   return (

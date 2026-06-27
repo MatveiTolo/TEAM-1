@@ -1,4 +1,3 @@
-// Login.tsx
 import { useState } from 'react';
 import { useApi } from '../../context/ApiContext';
 import './Login.css';
@@ -34,17 +33,6 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
       setError(err.message || 'Ошибка входа');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const quickLogin = async (username: string) => {
-    try {
-      const email = `${username}@example.com`;
-      await api.login(email, 'Admin123!');
-      onLogin(username);
-    } catch (err) {
-      console.error('Ошибка быстрого входа:', err);
-      onLogin(username);
     }
   };
 
@@ -140,28 +128,16 @@ export const Login = ({ onLogin, onNavigate }: LoginProps) => {
                 <a href="#" className="login-forgot__link">Забыли пароль?</a>
               </div>
             </div>
-
-            <div className="login-mock">
-              <p className="login-mock__label">🧪 Быстрый вход для тестирования</p>
-              <div className="login-mock__buttons">
-                <button className="login-mock__btn" onClick={() => quickLogin('admin')}>admin</button>
-                <button className="login-mock__btn" onClick={() => quickLogin('developer')}>developer</button>
-                <button className="login-mock__btn" onClick={() => quickLogin('tester')}>tester</button>
-                <button className="login-mock__btn" onClick={() => quickLogin('viewer')}>viewer</button>
-              </div>
-            </div>
           </div>
 
           <div className="login-image">
             <div className="login-image__wrapper">
               <div className="login-image__glow"></div>
-              {/* ============= ЗДЕСЬ БЫЛА ЗАМЕНА ============= */}
               <img 
                 src="/attachments/ФонСвет.png" 
                 alt="Лучи света" 
                 className="login-image__img" 
               />
-              {/* ============================================ */}
             </div>
           </div>
 

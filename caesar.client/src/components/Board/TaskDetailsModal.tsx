@@ -64,10 +64,13 @@ export const TaskDetailsModal = ({
   const loadHistory = async (taskId: number) => {
     try {
       setLoading(true);
-      const data = await api.getTaskHistory(taskId);
-      setHistory(data);
+      const response = await api.getTaskHistory(taskId);
+      // Извлекаем данные из ответа
+      const data = response.data;
+      setHistory(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Ошибка загрузки истории:', error);
+      setHistory([]);
     } finally {
       setLoading(false);
     }
@@ -75,10 +78,13 @@ export const TaskDetailsModal = ({
 
   const loadComments = async (taskId: number) => {
     try {
-      const data = await api.getComments(taskId);
-      setComments(data);
+      const response = await api.getComments(taskId);
+      // Извлекаем данные из ответа
+      const data = response.data;
+      setComments(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Ошибка загрузки комментариев:', error);
+      setComments([]);
     }
   };
 
@@ -87,23 +93,25 @@ export const TaskDetailsModal = ({
 
     try {
       setSaving(true);
-      const updated = await api.updateTask(task.id, {
+      const response = await api.updateTask(task.id, {
         title: editData.title,
         description: editData.description,
         deadline: editData.deadline || null,
-        assigneeId: editData.assigneeId,
+        assignedToId: editData.assigneeId,
       });
+      
+      // Извлекаем данные из ответа
+      const updated = response.data;
       
       setIsEditing(false);
       if (onTaskUpdated) {
         onTaskUpdated(updated);
       }
-      if (task) {
-        task.title = editData.title;
-        task.description = editData.description;
-        task.deadline = editData.deadline || null;
-        task.assignee_id = editData.assigneeId;
-      }
+      // Обновляем локальные данные
+      task.title = editData.title;
+      task.description = editData.description;
+      task.deadline = editData.deadline || null;
+      task.assignee_id = editData.assigneeId;
     } catch (error) {
       console.error('Ошибка сохранения:', error);
       alert('Не удалось сохранить изменения');
