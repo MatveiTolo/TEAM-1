@@ -1,3 +1,4 @@
+import { Icon } from '../../components/Icon/Icon';
 import './Landing.css';
 import { GlassCard3D } from '../../components/GlassCard3D/GlassCard3D';
 import { ThreeDCard } from '../../components/GlassCard3D/ThreeDCard';
@@ -198,7 +199,7 @@ export const Landing = ({ onNavigate }: LandingProps) => {
               {[
                 { number: '24/7', title: 'Доступность' },
                 { number: '∞', title: 'Масштабирование' },
-                { number: '🔒', title: 'Безопасность' },
+                { number: <Icon name="lock" size={28} />, title: 'Безопасность' },
               ].map((item, idx) => (
                 <div key={idx} className="landing-team__card">
                   <div className="landing-team__number">{item.number}</div>

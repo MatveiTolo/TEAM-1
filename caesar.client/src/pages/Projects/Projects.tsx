@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../../context/ApiContext';
+import { Icon } from '../../components/Icon/Icon';
 import './Projects.css';
 
-// Определяем интерфейс проекта локально, так как в types/index.ts нет экспорта Project
 interface Project {
   id: number;
   name: string;
@@ -34,7 +34,7 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
       
       setProjects(data);
     } catch (err: any) {
-      console.error('❌ Ошибка загрузки проектов:', err);
+      console.error('Ошибка загрузки проектов:', err);
       setError(err.message || 'Ошибка загрузки проектов');
       setProjects([]);
     } finally {
@@ -42,7 +42,6 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
     }
   }, [api]);
 
-  // Загрузка при монтировании
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
@@ -65,7 +64,7 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
     return (
       <div className="projects-container">
         <div className="projects-error">
-          ❌ {error}
+          <span className="projects-error__icon"><Icon name="alert" size={18} /></span> {error}
           <button onClick={() => loadProjects()}>Повторить</button>
         </div>
       </div>
@@ -75,7 +74,7 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
   return (
     <div className="projects-container">
       <div className="projects-header">
-        <h1>📋 Мои проекты</h1>
+        <h1><Icon name="board" size={22} /> Мои проекты</h1>
         <button className="create-project-btn" onClick={handleCreateProject}>
           + Создать проект
         </button>
@@ -104,8 +103,8 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
               </div>
               <h3 className="project-card__name">{project.name}</h3>
               <div className="project-card__stats">
-                <span>📅 {project.createdAt || project.created_at || '—'}</span>
-                <span>📌 {project.tasksCount || 0} задач</span>
+                <span><Icon name="calendar" size={14} /> {project.createdAt || project.created_at || '—'}</span>
+                <span><Icon name="tasks" size={14} /> {project.tasksCount || 0} задач</span>
               </div>
               <div className="project-card__footer">
                 <span className="project-card__enter">Перейти →</span>

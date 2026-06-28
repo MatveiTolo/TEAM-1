@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Task } from '../../types';
 import { STATUS_LABELS } from '../../types';
 import { getDeadlineStatus, formatDate } from '../../utils/dateHelpers';
+import { Icon } from '../Icon/Icon';
 import './TaskCard.css';
 
 interface TaskCardProps {
@@ -76,12 +77,12 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
       <div className="task-card__footer">
         {task.deadline && (
           <span className="task-card__deadline">
-            📅 {formatDate(task.deadline)}
+            <Icon name="calendar" size={14} /> {formatDate(task.deadline)}
           </span>
         )}
         {task.assignee_name && (
           <span className="task-card__assignee">
-            👤 {task.assignee_name}
+            <Icon name="user" size={14} /> {task.assignee_name}
           </span>
         )}
       </div>

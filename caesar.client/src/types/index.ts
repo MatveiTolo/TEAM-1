@@ -8,7 +8,7 @@ export interface Task {
   deadline: string | null;
   created_by: number;
   assignee_id: number | null;
-  assignee_name?: string | null;  // ← ИЗМЕНЕНО: добавлен | null
+  assignee_name?: string | null;
   page_id: number;
   position: number;
   created_at: string;

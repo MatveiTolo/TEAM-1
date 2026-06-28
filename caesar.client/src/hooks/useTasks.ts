@@ -101,19 +101,19 @@ export const useTasks = (pageId?: number) => {
           deadline: deadlineValue, // Отправляем в UTC формате (например, "2026-06-27T00:00:00.000Z")
         };
 
-        console.log('📤 Отправка запроса на создание задачи:', JSON.stringify(payload, null, 2));
+        console.log('Отправка запроса на создание задачи:', JSON.stringify(payload, null, 2));
 
         const response = await api.createTask(payload);
-        console.log('✅ Ответ от сервера:', response.data);
+        console.log('Ответ от сервера:', response.data);
 
         const newTask = normalizeTask(response.data);
         setTasks(prev => [...prev, newTask]);
         return newTask;
       } catch (err: any) {
-        console.error('❌ Ошибка создания задачи:', err);
+        console.error('Ошибка создания задачи:', err);
         
         if (err.response) {
-          console.error('📋 Детали ошибки:', {
+          console.error('Детали ошибки:', {
             status: err.response.status,
             data: err.response.data,
           });
@@ -140,14 +140,14 @@ export const useTasks = (pageId?: number) => {
           newPosition,
         };
 
-        console.log('📤 Перемещение задачи:', { taskId, payload });
+        console.log('Перемещение задачи:', { taskId, payload });
 
         const response = await api.moveTask(taskId, payload);
         const updated = normalizeTask(response.data);
         setTasks(prev => prev.map(t => (t.id === taskId ? updated : t)));
         return updated;
       } catch (err: any) {
-        console.error('❌ Ошибка перемещения задачи:', err);
+        console.error('Ошибка перемещения задачи:', err);
         throw err;
       }
     },

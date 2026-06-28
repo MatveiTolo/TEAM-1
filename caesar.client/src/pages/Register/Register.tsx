@@ -33,10 +33,10 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
 
     try {
       setLoading(true);
-      console.log('📤 Отправка регистрации:', { username, email, password: '***' });
+      console.log('Отправка регистрации:', { username, email, password: '***' });
       
       const result = await api.register(username, email, password);
-      console.log('✅ Результат регистрации:', result);
+      console.log('Результат регистрации:', result);
 
       try {
         await api.login(email, password);
@@ -46,7 +46,7 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
         onRegister(username);
       }
     } catch (err: any) {
-      console.error('❌ Ошибка регистрации:', err);
+      console.error('Ошибка регистрации:', err);
       setError(err.message || 'Ошибка регистрации');
     } finally {
       setLoading(false);

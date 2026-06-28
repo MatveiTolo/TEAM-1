@@ -8,6 +8,7 @@ import { Column } from '../Column/Column';
 import { TaskCard } from '../TaskCard/TaskCard';
 import { CreateTaskModal } from './CreateTaskModal';
 import { TaskDetailsModal } from './TaskDetailsModal';
+import { Icon } from '../Icon/Icon';
 import './Board.css';
 
 const COLUMNS: TaskStatus[] = ['preparation', 'execution', 'testing', 'done'];
@@ -62,7 +63,7 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
     const diff = Math.abs(oldIndex - newIndex);
     
     if (diff !== 1) {
-      alert('❌ Нельзя перепрыгивать через колонку! Перемещайте только на соседнюю.');
+      alert('Нельзя перепрыгивать через колонку! Перемещайте только на соседнюю.');
       return;
     }
 
@@ -81,7 +82,7 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
   if (error) {
     return (
       <div className="board__error">
-        <p>❌ {error}</p>
+        <p><Icon name="alert" size={16} /> {error}</p>
         <button onClick={() => window.location.reload()}>Обновить</button>
       </div>
     );
@@ -91,7 +92,7 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="board">
         <div className="board__header">
-          <h1 className="board__title">📋 Доска задач</h1>
+          <h1 className="board__title"><Icon name="board" size={22} /> Доска задач</h1>
           <button className="board__add-btn" onClick={() => setIsModalOpen(true)}>
             + Создать задачу
           </button>

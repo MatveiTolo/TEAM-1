@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../../context/ApiContext';
+import { Icon } from '../../components/Icon/Icon';
 import './Admin.css';
 
 // Определяем свои интерфейсы для админ-панели
@@ -81,7 +82,7 @@ export const Admin = ({ onBack }: AdminProps) => {
     try {
       // TODO: Добавить метод блокировки пользователя в API
       // await api.blockUser(userId);
-      await load(); // Обновляем список
+      await load();
     } catch (err) {
       console.error('Ошибка блокировки пользователя:', err);
       alert('Не удалось заблокировать пользователя');
@@ -93,7 +94,7 @@ export const Admin = ({ onBack }: AdminProps) => {
     try {
       // TODO: Добавить метод удаления проекта в API
       // await api.deleteProject(projectId);
-      await load(); // Обновляем список
+      await load();
     } catch (err) {
       console.error('Ошибка удаления проекта:', err);
       alert('Не удалось удалить проект');
@@ -175,7 +176,7 @@ export const Admin = ({ onBack }: AdminProps) => {
                         title="Редактировать"
                         onClick={() => setEditingUser(user)}
                       >
-                        ✎
+                        <Icon name="edit" size={16} />
                       </button>
                       {user.status !== 'blocked' && (
                         <button 
@@ -183,7 +184,7 @@ export const Admin = ({ onBack }: AdminProps) => {
                           title="Заблокировать"
                           onClick={() => handleBlockUser(user.id)}
                         >
-                          ⦸
+                          <Icon name="ban" size={16} />
                         </button>
                       )}
                     </td>
@@ -221,14 +222,14 @@ export const Admin = ({ onBack }: AdminProps) => {
                         title="Редактировать"
                         onClick={() => setEditingProject(project)}
                       >
-                        ✎
+                        <Icon name="edit" size={16} />
                       </button>
                       <button 
                         className="admin-action admin-action--delete" 
                         title="Удалить"
                         onClick={() => handleDeleteProject(project.id)}
                       >
-                        🗑
+                        <Icon name="trash" size={16} />
                       </button>
                     </td>
                   </tr>

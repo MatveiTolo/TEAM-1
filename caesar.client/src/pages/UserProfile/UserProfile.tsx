@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApi } from '../../context/ApiContext';
+import { Icon } from '../../components/Icon/Icon';
 import './UserProfile.css';
 
 interface UserProfileProps {
@@ -34,8 +35,8 @@ export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
 
     try {
       setLoading(true);
-      await api.updateProfile({ username, email });
-      setSuccess('✅ Профиль успешно обновлён');
+      await api.updateProfile({ userName: username, email });
+      setSuccess('Профиль успешно обновлён');
       setIsEditing(false);
     } catch (err: any) {
       setError(err.message || 'Ошибка обновления профиля');
@@ -48,7 +49,7 @@ export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
     <div className="profile-container">
       <div className="profile-card">
         <div className="profile-avatar">
-          <span className="profile-avatar__emoji">👤</span>
+          <span className="profile-avatar__emoji"><Icon name="user" size={40} /></span>
         </div>
 
         {!isEditing ? (
@@ -76,10 +77,10 @@ export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
                 className="profile-btn profile-btn--primary" 
                 onClick={() => setIsEditing(true)}
               >
-                ✏️ Редактировать профиль
+                <Icon name="edit" size={16} /> Редактировать профиль
               </button>
               <button className="profile-btn profile-btn--danger" onClick={onLogout}>
-                🚪 Выйти
+                <Icon name="logout" size={16} /> Выйти
               </button>
             </div>
           </>

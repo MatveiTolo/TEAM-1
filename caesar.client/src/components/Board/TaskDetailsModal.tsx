@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApi } from '../../context/ApiContext';
 import type { Task } from '../../types';
 import { formatDate, getDeadlineStatus } from '../../utils/dateHelpers';
+import { Icon } from '../Icon/Icon';
 import './TaskDetailsModal.css';
 
 interface TaskDetailsModalProps {
@@ -163,7 +164,7 @@ export const TaskDetailsModal = ({
       <div className="modal task-detail-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
           <h2>Задача #{task.id}</h2>
-          <button className="modal__close" onClick={onClose}>✕</button>
+          <button className="modal__close" onClick={onClose}><Icon name="close" size={18} /></button>
         </div>
 
         <div className="task-detail__content">
@@ -261,10 +262,10 @@ export const TaskDetailsModal = ({
 
               <div className="modal__actions task-detail__actions">
                 <button className="btn-secondary" onClick={() => setIsEditing(true)}>
-                  ✏️ Редактировать
+                  <Icon name="edit" size={16} /> Редактировать
                 </button>
                 <button className="btn-danger" onClick={handleDelete}>
-                  🗑️ Удалить
+                  <Icon name="trash" size={16} /> Удалить
                 </button>
                 <button className="btn-primary" onClick={onClose}>
                   Закрыть
@@ -320,7 +321,7 @@ export const TaskDetailsModal = ({
                   Отмена
                 </button>
                 <button className="btn-primary" onClick={handleSave} disabled={saving}>
-                  {saving ? 'Сохранение...' : '💾 Сохранить'}
+                  {saving ? 'Сохранение...' : <><Icon name="save" size={16} /> Сохранить</>}
                 </button>
               </div>
             </div>

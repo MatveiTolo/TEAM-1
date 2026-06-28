@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApi } from '../../context/ApiContext';
+import { Icon } from '../../components/Icon/Icon';
 import './ProjectSetup.css';
 
 interface ProjectSetupProps {
@@ -52,7 +53,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
       );
 
     } catch (err: any) {
-      console.error('🔴 ОШИБКА:', err);
+      console.error('Ошибка создания проекта:', err);
       setError(err.message || 'Произошла ошибка при создании проекта');
     } finally {
       setLoading(false);
@@ -62,7 +63,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
   return (
     <div className="setup-container">
       <div className="setup-card">
-        <h1 className="setup-title">🚀 Создай свой проект</h1>
+        <h1 className="setup-title"><Icon name="rocket" size={24} /> Создай свой проект</h1>
         <p className="setup-subtitle">Заполните данные для создания нового проекта</p>
 
         {error && <div className="setup-error">{error}</div>}

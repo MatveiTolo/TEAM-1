@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Task, User } from '../../types';
 import { api } from '../../services/api';
+import { Icon } from '../Icon/Icon';
 import './CreateTaskModal.css';
 
 // Схема валидации
@@ -74,7 +75,7 @@ export const CreateTaskModal = ({
     setSubmitError(null);
     
     try {
-      console.log('📤 Отправка данных задачи:', data);
+      console.log('Отправка данных задачи:', data);
       
       const taskData = {
         ...data,
@@ -83,12 +84,12 @@ export const CreateTaskModal = ({
       };
       
       const result = await onCreate(taskData as Omit<Task, 'id' | 'created_at' | 'updated_at'>);
-      console.log('✅ Задача создана:', result);
+      console.log('Задача создана:', result);
       
       reset();
       onClose();
     } catch (error: any) {
-      console.error('❌ Ошибка создания задачи:', error);
+      console.error('Ошибка создания задачи:', error);
       setSubmitError(error.message || 'Не удалось создать задачу. Попробуйте снова.');
     }
   };
@@ -100,13 +101,13 @@ export const CreateTaskModal = ({
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal__header">
           <h2>Создать задачу</h2>
-          <button className="modal__close" onClick={onClose}>✕</button>
+          <button className="modal__close" onClick={onClose}><Icon name="close" size={18} /></button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="modal__form">
           {submitError && (
             <div className="form-error" style={{ color: 'red', marginBottom: '16px', padding: '8px', background: '#ffeeee', borderRadius: '4px' }}>
-              ❌ {submitError}
+              <Icon name="alert" size={16} /> {submitError}
             </div>
           )}
 
