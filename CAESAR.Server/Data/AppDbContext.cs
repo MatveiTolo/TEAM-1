@@ -17,6 +17,7 @@ namespace CAESAR.Server.Data
         public DbSet<Comment> Comments { get; set; } = null!;
         public DbSet<BoardTaskHistory> TaskHistories { get; set; } = null!;
         public DbSet<UserNotification> UserNotifications { get; set; } = null!;
+        public DbSet<TelegramLink> TelegramLinks { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
