@@ -68,6 +68,14 @@ namespace CAESAR.Server
 
             var app = builder.Build();
 
+            // За облачным балансировщиком/прокси (Render, Railway, Cloud Run, Nginx)
+            // TLS терминируется снаружи — пробрасываем оригинальную схему и IP клиента.
+            app.UseForwardedHeaders(new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+            {
+                ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                                 | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            });
+
             app.UseDefaultFiles();
             app.MapStaticAssets();
 
@@ -80,9 +88,12 @@ namespace CAESAR.Server
 
                 app.UseCors("ClientDev");
             }
-            else
+
+            // HTTPS-редирект включаем только явным флагом (ForceHttpsRedirect=true).
+            // В облаке TLS обычно терминирует прокси, и принудительный редирект
+            // внутри контейнера приводит к циклу — по умолчанию выключен.
+            if (builder.Configuration.GetValue<bool>("ForceHttpsRedirect"))
             {
-                // HTTPS-редирект только вне разработки, чтобы не ломать Vite-прокси (http://localhost:5254)
                 app.UseHttpsRedirection();
             }
 

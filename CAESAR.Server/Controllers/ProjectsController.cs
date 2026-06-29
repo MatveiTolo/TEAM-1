@@ -72,7 +72,12 @@ namespace CAESAR.Server.Controllers
                     TasksCount = _context.ProjectPages
                         .Where(p => p.ProjectId == x.ProjectId)
                         .SelectMany(p => _context.BoardTasks.Where(t => t.ProjectPageId == p.Id))
-                        .Count()
+                        .Count(),
+                    DoneTasksCount = _context.ProjectPages
+                        .Where(p => p.ProjectId == x.ProjectId)
+                        .SelectMany(p => _context.BoardTasks.Where(t => t.ProjectPageId == p.Id))
+                        .Count(t => t.Status == BoardTaskStatus.Done),
+                    MembersCount = _context.Members.Count(m => m.ProjectId == x.ProjectId)
                 }).ToListAsync();
 
             return Ok(projects);

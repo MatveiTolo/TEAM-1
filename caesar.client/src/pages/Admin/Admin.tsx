@@ -22,11 +22,7 @@ interface AdminProject {
   status?: 'active' | 'archived';
 }
 
-interface AdminProps {
-  onBack?: () => void;
-}
-
-export const Admin = ({ onBack }: AdminProps) => {
+export const Admin = () => {
   const api = useApi();
   const [activeTab, setActiveTab] = useState<'users' | 'projects'>('users');
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -59,8 +55,8 @@ export const Admin = ({ onBack }: AdminProps) => {
         id: project.id,
         name: project.name || 'Без названия',
         theme: project.theme || '',
-        userCount: project.userCount || 0,
-        taskCount: project.taskCount || 0,
+        userCount: project.membersCount ?? project.userCount ?? 0,
+        taskCount: project.tasksCount ?? project.taskCount ?? 0,
         status: project.status || 'active'
       }));
 
@@ -105,12 +101,6 @@ export const Admin = ({ onBack }: AdminProps) => {
 
   return (
     <div className="admin-container">
-      {onBack && (
-        <button className="admin-back" onClick={onBack}>
-          ← Назад
-        </button>
-      )}
-
       <div className="admin-stats">
         <div className="admin-stat">
           <span className="admin-stat__number">{users.length}</span>

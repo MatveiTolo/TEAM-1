@@ -89,7 +89,8 @@ namespace CAESAR.Server.Controllers
                 Id = user.Id,
                 Username = user.UserName,
                 Email = user.Email,
-                ProjectsCount = projectsCount
+                ProjectsCount = projectsCount,
+                CreatedAt = user.CreatedAt
             });
         }
 

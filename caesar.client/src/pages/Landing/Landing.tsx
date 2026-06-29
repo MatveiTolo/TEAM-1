@@ -161,31 +161,61 @@ export const Landing = ({ onNavigate }: LandingProps) => {
               </ul>
             </div>
             <div className="landing-code__right">
-              <div className="landing-code__window">
-                <pre>
-<span className="landing-code__comment"># Путь пользователя в CAESAR</span>
+              <div className="landing-code__window path-window">
+                <div className="path-window__head">
+                  <span className="path-window__title"># Путь пользователя в CAESAR</span>
+                </div>
 
-<span className="landing-code__number">1.</span> <span className="landing-code__keyword">РЕГИСТРАЦИЯ</span>
-   → Создайте аккаунт за 30 секунд
-   → Подтвердите Email
-   → Готово к работе!
+                <ol className="path-steps">
+                  <li className="path-step">
+                    <span className="path-step__num">1</span>
+                    <div className="path-step__body">
+                      <h4 className="path-step__title">Регистрация</h4>
+                      <ul className="path-step__list">
+                        <li>Создайте аккаунт за 30 секунд</li>
+                        <li>Подтвердите Email</li>
+                        <li className="path-step__done">Готово к работе</li>
+                      </ul>
+                    </div>
+                  </li>
 
-<span className="landing-code__number">2.</span> <span className="landing-code__keyword">ВХОД В СИСТЕМУ</span>
-   → Введите логин и пароль
-   → (Опционально) Вход через Telegram
-   → Мгновенный доступ к личному кабинету
+                  <li className="path-step">
+                    <span className="path-step__num">2</span>
+                    <div className="path-step__body">
+                      <h4 className="path-step__title">Вход в систему</h4>
+                      <ul className="path-step__list">
+                        <li>Введите логин и пароль</li>
+                        <li>Опционально — вход через Telegram</li>
+                        <li>Мгновенный доступ к личному кабинету</li>
+                      </ul>
+                    </div>
+                  </li>
 
-<span className="landing-code__number">3.</span> <span className="landing-code__keyword">СПИСОК ВАШИХ ДОСОК</span>
-   → Обзор всех активных проектов
-   → Сортировка по дате, статусу, участникам
-   → <span className="landing-code__string">Нажмите на доску, чтобы открыть</span>
+                  <li className="path-step">
+                    <span className="path-step__num">3</span>
+                    <div className="path-step__body">
+                      <h4 className="path-step__title">Список ваших досок</h4>
+                      <ul className="path-step__list">
+                        <li>Обзор всех активных проектов</li>
+                        <li>Сортировка по дате, статусу, участникам</li>
+                        <li>Нажмите на доску, чтобы открыть</li>
+                      </ul>
+                    </div>
+                  </li>
 
-<span className="landing-code__number">4.</span> <span className="landing-code__keyword">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
-   → Нажмите кнопку <span className="landing-code__string">«Создать проект»</span>
-   → Введите название проекта
-   → Выберите шаблон (IT / Маркетинг / Дизайн)
-   → Готово! Доска создана.
-                </pre>
+                  <li className="path-step">
+                    <span className="path-step__num">4</span>
+                    <div className="path-step__body">
+                      <h4 className="path-step__title">Создать новый проект</h4>
+                      <ul className="path-step__list">
+                        <li>Нажмите «Создать проект»</li>
+                        <li>Введите название проекта</li>
+                        <li>Выберите шаблон: IT / Маркетинг / Дизайн</li>
+                        <li className="path-step__done">Доска создана</li>
+                      </ul>
+                    </div>
+                  </li>
+                </ol>
               </div>
             </div>
           </div>

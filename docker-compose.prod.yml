@@ -1,0 +1,69 @@
+# ----------------------------------------------------------------------------
+# Прод-композиция для self-hosting (DigitalOcean droplet / VPS).
+# Все секреты читаются из окружения (.env рядом с этим файлом или из секретов CI).
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Облачные PaaS (Render/Railway/Cloud Run) могут разворачивать сервисы по
+# отдельности из тех же Dockerfile'ов — этот файл удобен для единого хоста.
+# ----------------------------------------------------------------------------
+services:
+  db:
+    image: postgres:16
+    container_name: caesar_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Порт наружу не пробрасываем — БД доступна только внутри сети compose.
+
+  server:
+    build:
+      context: .
+      dockerfile: CAESAR.Server/Dockerfile
+    image: ${REGISTRY_IMAGE_SERVER:-caesar-server}:${IMAGE_TAG:-latest}
+    container_name: caesar_server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      JwtSettings__Secret: ${JWT_SECRET}
+      JwtSettings__Issuer: ${JWT_ISSUER}
+      JwtSettings__Audience: ${JWT_AUDIENCE}
+      Telegram__BotSecret: ${TELEGRAM_BOT_SECRET}
+      # ForceHttpsRedirect: "true"   # включите, только если TLS терминирует сам контейнер
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    image: ${REGISTRY_IMAGE_BOT:-caesar-bot}:${IMAGE_TAG:-latest}
+    container_name: caesar_bot
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      CAESAR_API_BASE: ${CAESAR_API_BASE:-http://server:8080}
+      CAESAR_BOT_SECRET: ${TELEGRAM_BOT_SECRET}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      BOT_DB_PATH: /data/bot.db
+    volumes:
+      - botdata:/data
+
+volumes:
+  pgdata:
+  botdata:

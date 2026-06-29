@@ -1,6 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { useState } from 'react';
 import type { Task } from '../../types';
 import { STATUS_LABELS } from '../../types';
 import { getDeadlineStatus, formatDate } from '../../utils/dateHelpers';
@@ -13,10 +12,15 @@ interface TaskCardProps {
 }
 
 export const TaskCard = ({ task, onClick }: TaskCardProps) => {
-  const [isDragging, setIsDragging] = useState(false);
   const deadlineStatus = getDeadlineStatus(task.deadline);
-  
-  const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    isDragging,
+  } = useDraggable({
     id: task.id,
     data: {
       task,
@@ -24,10 +28,11 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
     },
   });
 
-  const style = {
+  // Скрываем исходную карточку, пока она «летит» в DragOverlay — это убирает
+  // двоение и рывки. Реальный визуал во время перетаскивания рисует overlay.
+  const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    opacity: isDndDragging ? 0.5 : 1,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    opacity: isDragging ? 0 : 1,
   };
 
   const getStatusClassName = () => {
@@ -38,19 +43,10 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
     }
   };
 
-  const handleMouseDown = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseMove = () => {
-    setIsDragging(true);
-  };
-
+  // Порог активации в сенсоре сам отличает клик от драга:
+  // обычный клик (без смещения) не запускает перетаскивание и спокойно открывает задачу.
   const handleClick = () => {
-    if (isDragging) {
-      setIsDragging(false);
-      return;
-    }
+    if (isDragging) return;
     onClick(task);
   };
 
@@ -61,8 +57,6 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
       {...listeners}
       {...attributes}
       className={`task-card ${getStatusClassName()}`}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
       onClick={handleClick}
     >
       <div className="task-card__header">
@@ -71,9 +65,9 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
           {STATUS_LABELS[task.status]}
         </span>
       </div>
-      
+
       <h4 className="task-card__title">{task.title}</h4>
-      
+
       <div className="task-card__footer">
         {task.deadline && (
           <span className="task-card__deadline">

@@ -84,10 +84,31 @@ function App() {
     setCurrentScreen('board');
   };
 
-  const handleSelectProject = (_projectId: number) => {
-    // TODO: Загрузить страницы проекта и выбрать первую
-    setSelectedPageId(1);
-    setCurrentScreen('board');
+  const handleSelectProject = async (
+    projectId: number,
+    name?: string,
+    theme?: string,
+  ) => {
+    // Загружаем страницы выбранного проекта и открываем доску ИМЕННО его
+    // первой страницы — иначе доска всегда показывала задачи страницы №1
+    // (из-за чего задачи «перетекали» между всеми проектами).
+    try {
+      const response = await api.getProjectPages(projectId);
+      const pages = response.data || [];
+      const firstPageId = pages.length > 0 ? pages[0].id : null;
+
+      if (firstPageId) {
+        setSelectedPageId(firstPageId);
+        setProjectName(name || 'Проект');
+        setProjectTheme(theme || '');
+        setCurrentScreen('board');
+      } else {
+        // У проекта ещё нет ни одной доски — отправляем в мастер создания
+        setCurrentScreen('setup');
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки страниц проекта:', error);
+    }
   };
 
   const handleLogout = () => {
@@ -191,8 +212,14 @@ function App() {
       username: currentUser?.username || 'Пользователь',
       email: currentUser?.email || '',
       role: currentUser?.role || 'Участник',
-      createdAt: new Date().toLocaleDateString('ru-RU'),
-      projectsCount: 0,
+      createdAt: currentUser?.createdAt
+        ? new Date(currentUser.createdAt).toLocaleDateString('ru-RU', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          })
+        : '—',
+      projectsCount: currentUser?.projectsCount ?? 0,
     };
 
     return (
@@ -208,7 +235,7 @@ function App() {
   if (currentScreen === 'admin') {
     return (
       <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Панель администратора" active="admin">
-        <Admin onBack={() => setCurrentScreen('projects')} />
+        <Admin />
       </AppShell>
     );
   }

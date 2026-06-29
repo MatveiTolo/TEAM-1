@@ -11,10 +11,12 @@ interface Project {
   createdAt?: string;
   created_at?: string;
   tasksCount?: number;
+  doneTasksCount?: number;
+  membersCount?: number;
 }
 
 interface ProjectsProps {
-  onSelectProject: (projectId: number) => void;
+  onSelectProject: (projectId: number, name?: string, theme?: string) => void;
   onCreateProject?: () => void;
 }
 
@@ -89,28 +91,54 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
         </div>
       ) : (
         <div className="projects-grid">
-          {projects.map((project) => (
-            <div 
-              key={project.id} 
-              className="project-card"
-              onClick={() => onSelectProject(project.id)}
-            >
-              <div className="project-card__header">
-                {project.theme && (
-                  <span className="project-card__theme">{project.theme}</span>
-                )}
-                <span className="project-card__role">{project.role || 'Участник'}</span>
+          {projects.map((project) => {
+            const total = project.tasksCount || 0;
+            const done = project.doneTasksCount || 0;
+            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+            return (
+              <div
+                key={project.id}
+                className="project-card"
+                onClick={() => onSelectProject(project.id, project.name, project.theme)}
+              >
+                <div className="project-card__header">
+                  {project.theme && (
+                    <span className="project-card__theme">{project.theme}</span>
+                  )}
+                  <span className="project-card__role">{project.role || 'Участник'}</span>
+                </div>
+                <h3 className="project-card__name">{project.name}</h3>
+
+                <div className="project-card__progress">
+                  <div className="project-card__progress-head">
+                    <span className="project-card__progress-label">Выполнение</span>
+                    <span className="project-card__progress-value">{percent}%</span>
+                  </div>
+                  <div
+                    className="project-card__progress-track"
+                    role="progressbar"
+                    aria-valuenow={percent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div
+                      className={`project-card__progress-fill${percent === 100 ? ' is-complete' : ''}`}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="project-card__stats">
+                  <span><Icon name="calendar" size={14} /> {project.createdAt || project.created_at || '—'}</span>
+                  <span><Icon name="tasks" size={14} /> {done}/{total} задач</span>
+                </div>
+                <div className="project-card__footer">
+                  <span className="project-card__enter">Перейти →</span>
+                </div>
               </div>
-              <h3 className="project-card__name">{project.name}</h3>
-              <div className="project-card__stats">
-                <span><Icon name="calendar" size={14} /> {project.createdAt || project.created_at || '—'}</span>
-                <span><Icon name="tasks" size={14} /> {project.tasksCount || 0} задач</span>
-              </div>
-              <div className="project-card__footer">
-                <span className="project-card__enter">Перейти →</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

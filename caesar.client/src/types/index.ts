@@ -21,6 +21,8 @@ export interface User {
   email: string;
   role: 'admin' | 'page_admin' | 'developer' | 'tester' | 'viewer';
   page_id: number | null;
+  createdAt?: string;
+  projectsCount?: number;
 }
 
 export const STATUS_ORDER: Record<TaskStatus, number> = {

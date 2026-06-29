@@ -1,7 +1,8 @@
+import os
 import sqlite3
 from contextlib import closing
 
-DB_PATH = "bot.db"
+DB_PATH = os.environ.get("BOT_DB_PATH", "bot.db")
 
 
 def init() -> None:

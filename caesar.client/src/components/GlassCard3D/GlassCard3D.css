@@ -212,3 +212,197 @@
   display: flex;
   justify-content: center;
 }
+/* ====================================================== */
+/* ИИ-ЯДРО — анимация ожидания запроса (тема: ИИ)          */
+/* ====================================================== */
+.glass-chat__placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+}
+
+.ai-core {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Пульсирующие кольца, расходящиеся от центра */
+.ai-core__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  animation: aiRing 3.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+.ai-core__ring--delay { animation-delay: 1.7s; }
+
+@keyframes aiRing {
+  0%   { transform: scale(0.5); opacity: 0; }
+  20%  { opacity: 0.7; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Орбиты с частицами */
+.ai-core__orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+.ai-core__orbit--1 {
+  width: 100px; height: 100px;
+  margin: -50px 0 0 -50px;
+  animation: aiSpin 7s linear infinite;
+}
+.ai-core__orbit--2 {
+  width: 130px; height: 130px;
+  margin: -65px 0 0 -65px;
+  border-color: rgba(255, 255, 255, 0.05);
+  animation: aiSpin 11s linear infinite reverse;
+}
+.ai-core__orbit--3 {
+  width: 76px; height: 76px;
+  margin: -38px 0 0 -38px;
+  border-color: rgba(255, 255, 255, 0.08);
+  animation: aiSpin 5s linear infinite;
+}
+@keyframes aiSpin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.ai-core__particle {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8), 0 0 24px rgba(255, 255, 255, 0.4);
+}
+.ai-core__orbit--2 .ai-core__particle {
+  width: 4px; height: 4px; margin-left: -2px; top: -2px;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+}
+.ai-core__orbit--3 .ai-core__particle {
+  width: 5px; height: 5px; margin-left: -2.5px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* Нейросетевое ядро в центре */
+.ai-core__brain {
+  position: relative;
+  z-index: 2;
+  width: 52px;
+  height: 52px;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
+  animation: aiBreathe 4s ease-in-out infinite;
+}
+@keyframes aiBreathe {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.06); }
+}
+
+.ai-core__node {
+  fill: rgba(255, 255, 255, 0.08);
+  animation: aiNode 2.6s ease-in-out infinite;
+}
+.ai-core__node--center {
+  fill: rgba(255, 255, 255, 0.18);
+  animation-duration: 2s;
+}
+.ai-core__brain circle:nth-child(2) { animation-delay: 0.2s; }
+.ai-core__brain circle:nth-child(3) { animation-delay: 0.5s; }
+.ai-core__brain circle:nth-child(4) { animation-delay: 0.8s; }
+.ai-core__brain circle:nth-child(5) { animation-delay: 1.1s; }
+@keyframes aiNode {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+.ai-core__synapse {
+  stroke: rgba(255, 255, 255, 0.4);
+  stroke-dasharray: 4 6;
+  animation: aiSynapse 1.6s linear infinite;
+}
+@keyframes aiSynapse {
+  to { stroke-dashoffset: -20; }
+}
+
+/* Луч-сканер, проходящий по ядру */
+.ai-core__scan {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.18) 40deg,
+    transparent 90deg
+  );
+  animation: aiSpin2 3s linear infinite;
+}
+@keyframes aiSpin2 {
+  to { transform: rotate(360deg); }
+}
+
+/* Статус под ядром */
+.glass-chat__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.glass-chat__dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.glass-chat__dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  animation: aiDots 1.4s ease-in-out infinite;
+}
+.glass-chat__dots span:nth-child(2) { animation-delay: 0.2s; }
+.glass-chat__dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes aiDots {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50%      { opacity: 1; transform: translateY(-3px); }
+}
+.glass-chat__hint {
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 14px;
+  font-weight: 300;
+  letter-spacing: 2px;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-core__ring,
+  .ai-core__orbit,
+  .ai-core__brain,
+  .ai-core__node,
+  .ai-core__synapse,
+  .ai-core__scan,
+  .glass-chat__dots span { animation: none; }
+  .ai-core__ring { opacity: 0.3; transform: scale(1.4); }
+}

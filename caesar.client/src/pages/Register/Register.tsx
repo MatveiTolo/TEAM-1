@@ -14,6 +14,8 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [isConsentOpen, setIsConsentOpen] = useState(false);
 
   const api = useApi();
 
@@ -28,6 +30,11 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
 
     if (password.length < 6) {
       setError('Пароль должен быть не менее 6 символов');
+      return;
+    }
+
+    if (!consent) {
+      setError('Необходимо согласие на обработку персональных данных');
       return;
     }
 
@@ -152,7 +159,32 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
                   </div>
                 </div>
 
-                <button type="submit" className="register-submit" disabled={loading}>
+                <label className="register-consent">
+                  <input
+                    type="checkbox"
+                    className="register-consent__checkbox"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                    disabled={loading}
+                  />
+                  <span className="register-consent__box" aria-hidden="true">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                  <span className="register-consent__text">
+                    Я ознакомлен(а) и согласен(на) с{' '}
+                    <button
+                      type="button"
+                      className="register-consent__link"
+                      onClick={(e) => { e.preventDefault(); setIsConsentOpen(true); }}
+                    >
+                      обработкой персональных данных
+                    </button>
+                  </span>
+                </label>
+
+                <button type="submit" className="register-submit" disabled={loading || !consent}>
                   {loading ? (
                     <span className="register-submit__loader"></span>
                   ) : (
@@ -183,6 +215,86 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
           Войти
         </button>
       </div>
+
+      {isConsentOpen && (
+        <div
+          className="consent-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="consent-modal-title"
+          onClick={() => setIsConsentOpen(false)}
+        >
+          <div className="consent-modal__card" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="consent-modal__close"
+              onClick={() => setIsConsentOpen(false)}
+              aria-label="Закрыть"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
+            <div className="consent-modal__header">
+              <span className="consent-modal__badge">152-ФЗ</span>
+              <h3 className="consent-modal__title" id="consent-modal-title">
+                Согласие на обработку персональных данных
+              </h3>
+              <p className="consent-modal__subtitle">
+                В соответствии с Федеральным законом № 152-ФЗ «О персональных данных»
+              </p>
+            </div>
+
+            <div className="consent-modal__body">
+              <p>
+                Регистрируясь в сервисе CAESAR, вы даёте оператору согласие на обработку
+                ваших персональных данных (имя пользователя и адрес электронной почты),
+                указанных при создании аккаунта.
+              </p>
+              <p>Обработка данных осуществляется в следующих целях:</p>
+              <ul>
+                <li>создание и идентификация вашей учётной записи;</li>
+                <li>обеспечение доступа к функциям сервиса и сохранение ваших проектов;</li>
+                <li>направление сервисных уведомлений, связанных с работой сервиса.</li>
+              </ul>
+              <p>
+                Под обработкой понимаются сбор, запись, систематизация, хранение,
+                уточнение, использование, блокирование, удаление и уничтожение
+                персональных данных. Обработка ведётся как автоматизированным,
+                так и неавтоматизированным способом.
+              </p>
+              <p>
+                Согласие действует с момента регистрации и до момента его отзыва.
+                Вы вправе в любой момент отозвать согласие, направив запрос оператору,
+                а также потребовать удаления своих данных. Оператор не передаёт ваши
+                данные третьим лицам, за исключением случаев, предусмотренных
+                законодательством Российской Федерации.
+              </p>
+              <p className="consent-modal__note">
+                Нажимая «Зарегистрироваться», вы подтверждаете, что ознакомились с
+                настоящим текстом, а ваше согласие является конкретным, информированным
+                и сознательным.
+              </p>
+            </div>
+
+            <div className="consent-modal__footer">
+              <button
+                className="consent-modal__btn consent-modal__btn--ghost"
+                onClick={() => setIsConsentOpen(false)}
+              >
+                Закрыть
+              </button>
+              <button
+                className="consent-modal__btn consent-modal__btn--accent"
+                onClick={() => { setConsent(true); setIsConsentOpen(false); setError(''); }}
+              >
+                Прочитал(а) и согласен(на)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

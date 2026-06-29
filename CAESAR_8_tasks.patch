@@ -1,0 +1,2462 @@
+From 327d8588406e03b8f9e1cc4d1ff0bc8e7a6a655c Mon Sep 17 00:00:00 2001
+From: CAESAR Dev <dev@caesar.local>
+Date: Mon, 29 Jun 2026 11:23:29 +0000
+Subject: [PATCH] 8 fixes: cloud Docker+CI, 152-FZ consent, profile data, admin
+ back/counts, project progress, board scoping+smooth DnD, AI animation,
+ user-path card
+
+---
+ .dockerignore                                 |  61 +--
+ .env.example                                  |  35 ++
+ .github/workflows/deploy.yml                  |  97 ++++
+ .../Controllers/ProjectsController.cs         |   7 +-
+ CAESAR.Server/Controllers/UsersController.cs  |   3 +-
+ CAESAR.Server/Dockerfile                      |  62 ++-
+ ...60629000000_AddCreatedAtToUser.Designer.cs | 438 ++++++++++++++++++
+ .../20260629000000_AddCreatedAtToUser.cs      |  30 ++
+ .../Migrations/AppDbContextModelSnapshot.cs   |   3 +
+ CAESAR.Server/Models/User.cs                  |   6 +-
+ CAESAR.Server/Program.cs                      |  15 +-
+ bot/.dockerignore                             |   9 +
+ bot/Dockerfile                                |  29 ++
+ bot/db.py                                     |   3 +-
+ caesar.client/src/App.tsx                     |  41 +-
+ caesar.client/src/components/Board/Board.tsx  |  43 +-
+ .../src/components/Column/Column.css          |   2 +
+ .../components/GlassCard3D/GlassCard3D.css    | 196 +++++++-
+ .../components/GlassCard3D/GlassCard3D.tsx    |  40 +-
+ .../src/components/TaskCard/TaskCard.css      |  23 +
+ .../src/components/TaskCard/TaskCard.tsx      |  42 +-
+ caesar.client/src/pages/Admin/Admin.tsx       |  16 +-
+ caesar.client/src/pages/Landing/Landing.css   | 111 +++++
+ caesar.client/src/pages/Landing/Landing.tsx   |  80 +++-
+ caesar.client/src/pages/Projects/Projects.css |  71 +++
+ caesar.client/src/pages/Projects/Projects.tsx |  72 ++-
+ caesar.client/src/pages/Register/Register.css | 256 +++++++++-
+ caesar.client/src/pages/Register/Register.tsx | 114 ++++-
+ caesar.client/src/types/index.ts              |   2 +
+ docker-compose.prod.yml                       |  69 +++
+ 30 files changed, 1816 insertions(+), 160 deletions(-)
+ create mode 100644 .env.example
+ create mode 100644 .github/workflows/deploy.yml
+ create mode 100644 CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.Designer.cs
+ create mode 100644 CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.cs
+ create mode 100644 bot/.dockerignore
+ create mode 100644 bot/Dockerfile
+ create mode 100644 docker-compose.prod.yml
+
+diff --git a/.dockerignore b/.dockerignore
+index fe1152b..f5b96b0 100644
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -1,30 +1,33 @@
+-**/.classpath
+-**/.dockerignore
++# --- VCS / IDE ---
++.git/
++.gitignore
++.vs/
++.vscode/
++*.user
++
++# --- Node / client build artifacts ---
++**/node_modules/
++caesar.client/dist/
++caesar.client/.vite/
++
++# --- .NET build artifacts ---
++**/bin/
++**/obj/
++CAESAR.Server/wwwroot/
++
++# --- Secrets / local env ---
+ **/.env
+-**/.git
+-**/.gitignore
+-**/.project
+-**/.settings
+-**/.toolstarget
+-**/.vs
+-**/.vscode
+-**/*.*proj.user
+-**/*.dbmdl
+-**/*.jfm
+-**/azds.yaml
+-**/bin
+-**/charts
+-**/docker-compose*
+-**/Dockerfile*
+-**/node_modules
+-**/npm-debug.log
+-**/obj
+-**/secrets.dev.yaml
+-**/values.dev.yaml
+-LICENSE
+-README.md
+-!**/.gitignore
+-!.git/HEAD
+-!.git/config
+-!.git/packed-refs
+-!.git/refs/heads/**
+\ No newline at end of file
++.env.*
++!.env.example
++appsettings.*.Local.json
++
++# --- Bot local state ---
++bot/__pycache__/
++bot/*.db
++bot/.venv/
++
++# --- Misc ---
++*.md
++caesar-client.patch
++docker-compose.override.yml
++launchSettings.json
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..10e4ec6
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,35 @@
++# ============================================================================
++# CAESAR — пример переменных окружения для прод-деплоя.
++# Скопируйте в .env и заполните реальными значениями. НЕ коммитьте .env.
++# Те же ключи задаются как GitHub Secrets для CI/CD (см. README деплоя).
++# ============================================================================
++
++# ---- PostgreSQL ----
++POSTGRES_USER=caesar_admin
++POSTGRES_PASSWORD=change_me_strong_password
++POSTGRES_DB=caesar_db
++
++# ---- Сервер (.NET): JWT ----
++# Секрет должен быть длинным случайным (>= 32 символов).
++JWT_SECRET=change_me_to_a_long_random_secret_key_min_32_chars
++JWT_ISSUER=CAESAR
++JWT_AUDIENCE=CAESAR
++
++# ---- Общий секрет «сервер <-> бот» ----
++# Одно и то же значение читают и сервер (Telegram__BotSecret), и бот (CAESAR_BOT_SECRET).
++TELEGRAM_BOT_SECRET=change_me_shared_bot_secret
++
++# ---- Публикация сервера ----
++SERVER_PORT=8080
++
++# ---- Telegram-бот ----
++BOT_TOKEN=123456789:your_telegram_bot_token
++# Базовый URL API CAESAR, который видит бот. Внутри compose это http://server:8080
++CAESAR_API_BASE=http://server:8080
++OPENAI_API_KEY=sk-your_openai_key
++OPENAI_MODEL=gpt-4o
++
++# ---- (Опционально) теги образов в реестре ----
++# REGISTRY_IMAGE_SERVER=ghcr.io/matveitolo/caesar-server
++# REGISTRY_IMAGE_BOT=ghcr.io/matveitolo/caesar-bot
++# IMAGE_TAG=latest
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+new file mode 100644
+index 0000000..a79d2f9
+--- /dev/null
++++ b/.github/workflows/deploy.yml
+@@ -0,0 +1,97 @@
++name: Build & Push (CAESAR)
++
++# Собирает образы сервера (с фронтом внутри) и Telegram-бота
++# и публикует их в GitHub Container Registry (GHCR).
++on:
++  push:
++    branches: [ main, master ]
++  workflow_dispatch:
++
++env:
++  REGISTRY: ghcr.io
++  IMAGE_SERVER: ${{ github.repository }}-server
++  IMAGE_BOT: ${{ github.repository }}-bot
++
++jobs:
++  build-and-push:
++    runs-on: ubuntu-latest
++    permissions:
++      contents: read
++      packages: write   # нужно для пуша в GHCR через GITHUB_TOKEN
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Set up Docker Buildx
++        uses: docker/setup-buildx-action@v3
++
++      - name: Log in to GHCR
++        uses: docker/login-action@v3
++        with:
++          registry: ${{ env.REGISTRY }}
++          username: ${{ github.actor }}
++          password: ${{ secrets.GITHUB_TOKEN }}
++
++      # ---------- Сервер (.NET + React-клиент) ----------
++      - name: Server metadata
++        id: meta_server
++        uses: docker/metadata-action@v5
++        with:
++          images: ${{ env.REGISTRY }}/${{ env.IMAGE_SERVER }}
++          tags: |
++            type=raw,value=latest
++            type=sha,format=short
++
++      - name: Build & push server
++        uses: docker/build-push-action@v6
++        with:
++          context: .
++          file: CAESAR.Server/Dockerfile
++          push: true
++          tags: ${{ steps.meta_server.outputs.tags }}
++          labels: ${{ steps.meta_server.outputs.labels }}
++          cache-from: type=gha
++          cache-to: type=gha,mode=max
++
++      # ---------- Telegram-бот ----------
++      - name: Bot metadata
++        id: meta_bot
++        uses: docker/metadata-action@v5
++        with:
++          images: ${{ env.REGISTRY }}/${{ env.IMAGE_BOT }}
++          tags: |
++            type=raw,value=latest
++            type=sha,format=short
++
++      - name: Build & push bot
++        uses: docker/build-push-action@v6
++        with:
++          context: ./bot
++          file: bot/Dockerfile
++          push: true
++          tags: ${{ steps.meta_bot.outputs.tags }}
++          labels: ${{ steps.meta_bot.outputs.labels }}
++          cache-from: type=gha
++          cache-to: type=gha,mode=max
++
++  # ----------------------------------------------------------------------------
++  # (Опционально) авто-деплой на ваш сервер по SSH после публикации образов.
++  # Требует секретов DEPLOY_HOST / DEPLOY_USER / DEPLOY_SSH_KEY и наличия на
++  # сервере docker-compose.prod.yml + .env. Раскомментируйте при необходимости.
++  # ----------------------------------------------------------------------------
++  # deploy:
++  #   needs: build-and-push
++  #   runs-on: ubuntu-latest
++  #   steps:
++  #     - name: Deploy over SSH
++  #       uses: appleboy/ssh-action@v1
++  #       with:
++  #         host: ${{ secrets.DEPLOY_HOST }}
++  #         username: ${{ secrets.DEPLOY_USER }}
++  #         key: ${{ secrets.DEPLOY_SSH_KEY }}
++  #         script: |
++  #           cd /opt/caesar
++  #           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
++  #           docker compose -f docker-compose.prod.yml pull
++  #           docker compose -f docker-compose.prod.yml up -d
+diff --git a/CAESAR.Server/Controllers/ProjectsController.cs b/CAESAR.Server/Controllers/ProjectsController.cs
+index 87f9d36..4b4ce8f 100644
+--- a/CAESAR.Server/Controllers/ProjectsController.cs
++++ b/CAESAR.Server/Controllers/ProjectsController.cs
+@@ -72,7 +72,12 @@ namespace CAESAR.Server.Controllers
+                     TasksCount = _context.ProjectPages
+                         .Where(p => p.ProjectId == x.ProjectId)
+                         .SelectMany(p => _context.BoardTasks.Where(t => t.ProjectPageId == p.Id))
+-                        .Count()
++                        .Count(),
++                    DoneTasksCount = _context.ProjectPages
++                        .Where(p => p.ProjectId == x.ProjectId)
++                        .SelectMany(p => _context.BoardTasks.Where(t => t.ProjectPageId == p.Id))
++                        .Count(t => t.Status == BoardTaskStatus.Done),
++                    MembersCount = _context.Members.Count(m => m.ProjectId == x.ProjectId)
+                 }).ToListAsync();
+ 
+             return Ok(projects);
+diff --git a/CAESAR.Server/Controllers/UsersController.cs b/CAESAR.Server/Controllers/UsersController.cs
+index 799a83c..20c1a72 100644
+--- a/CAESAR.Server/Controllers/UsersController.cs
++++ b/CAESAR.Server/Controllers/UsersController.cs
+@@ -89,7 +89,8 @@ namespace CAESAR.Server.Controllers
+                 Id = user.Id,
+                 Username = user.UserName,
+                 Email = user.Email,
+-                ProjectsCount = projectsCount
++                ProjectsCount = projectsCount,
++                CreatedAt = user.CreatedAt
+             });
+         }
+ 
+diff --git a/CAESAR.Server/Dockerfile b/CAESAR.Server/Dockerfile
+index 3937c0e..7a912bb 100644
+--- a/CAESAR.Server/Dockerfile
++++ b/CAESAR.Server/Dockerfile
+@@ -1,38 +1,54 @@
+-# См. статью по ссылке https://aka.ms/customizecontainer, чтобы узнать как настроить контейнер отладки и как Visual Studio использует этот Dockerfile для создания образов для ускорения отладки.
++# syntax=docker/dockerfile:1
++# ----------------------------------------------------------------------------
++# CAESAR.Server — облачный образ (ASP.NET 10 + собранный React-клиент в wwwroot)
++# Собирает фронтенд (Vite) и бэкенд в одном образе. Слушает $PORT (по умолчанию 8080),
++# что совместимо с Render / Railway / Fly.io / Google Cloud Run / DigitalOcean Apps.
++# ----------------------------------------------------------------------------
+ 
+-# Этот этап используется при запуске из VS в быстром режиме (по умолчанию для конфигурации отладки)
++# ---- Базовый рантайм ----
+ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+-USER $APP_UID
+ WORKDIR /app
+ EXPOSE 8080
+-EXPOSE 8081
+-
+-
+-# Этот этап используется для сборки проекта службы
+-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS with-node
+-RUN apt-get update
+-RUN apt-get install curl
+-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash
+-RUN apt-get -y install nodejs
+ 
++# ---- SDK + Node для сборки сервера и клиента ----
++FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
++RUN apt-get update \
++    && apt-get install -y --no-install-recommends curl \
++    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
++    && apt-get install -y --no-install-recommends nodejs \
++    && rm -rf /var/lib/apt/lists/*
+ 
+-FROM with-node AS build
+ ARG BUILD_CONFIGURATION=Release
+ WORKDIR /src
++
++# Кэшируем restore: сначала только манифесты проектов
+ COPY ["CAESAR.Server/CAESAR.Server.csproj", "CAESAR.Server/"]
+ COPY ["caesar.client/caesar.client.esproj", "caesar.client/"]
+-RUN dotnet restore "./CAESAR.Server/CAESAR.Server.csproj"
++COPY ["caesar.client/package.json", "caesar.client/"]
++RUN dotnet restore "CAESAR.Server/CAESAR.Server.csproj"
++
++# Остальной исходный код
+ COPY . .
+-WORKDIR "/src/CAESAR.Server"
+-RUN dotnet build "./CAESAR.Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
+ 
+-# Этот этап используется для публикации проекта службы, который будет скопирован на последний этап
+-FROM build AS publish
+-ARG BUILD_CONFIGURATION=Release
+-RUN dotnet publish "./CAESAR.Server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
++# Публикация (во время publish esproj собирает клиент и кладёт его в wwwroot)
++WORKDIR "/src/CAESAR.Server"
++RUN dotnet publish "CAESAR.Server.csproj" \
++    -c $BUILD_CONFIGURATION \
++    -o /app/publish \
++    /p:UseAppHost=false
+ 
+-# Этот этап используется в рабочей среде или при запуске из VS в обычном режиме (по умолчанию, когда конфигурация отладки не используется)
++# ---- Финальный образ ----
+ FROM base AS final
+ WORKDIR /app
+-COPY --from=publish /app/publish .
+-ENTRYPOINT ["dotnet", "CAESAR.Server.dll"]
++COPY --from=build /app/publish .
++
++# Прод-настройки по умолчанию; реальные секреты приходят через переменные окружения.
++ENV ASPNETCORE_ENVIRONMENT=Production \
++    DOTNET_RUNNING_IN_CONTAINER=true \
++    ASPNETCORE_HTTP_PORTS=8080
++
++# Непривилегированный пользователь (образ aspnet содержит пользователя app, uid 1654)
++USER $APP_UID
++
++# Слушаем $PORT, если платформа его задаёт (Render/Railway/Cloud Run), иначе 8080.
++ENTRYPOINT ["/bin/sh", "-c", "export ASPNETCORE_HTTP_PORTS=${PORT:-8080}; exec dotnet CAESAR.Server.dll"]
+diff --git a/CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.Designer.cs b/CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.Designer.cs
+new file mode 100644
+index 0000000..11b0c78
+--- /dev/null
++++ b/CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.Designer.cs
+@@ -0,0 +1,438 @@
++﻿// <auto-generated />
++using System;
++using CAESAR.Server.Data;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
++using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
++
++#nullable disable
++
++namespace CAESAR.Server.Migrations
++{
++    [DbContext(typeof(AppDbContext))]
++    [Migration("20260629000000_AddCreatedAtToUser")]
++    partial class AddCreatedAtToUser
++    {
++        /// <inheritdoc />
++        protected override void BuildTargetModel(ModelBuilder modelBuilder)
++        {
++#pragma warning disable 612, 618
++            modelBuilder
++                .HasAnnotation("ProductVersion", "10.0.9")
++                .HasAnnotation("Relational:MaxIdentifierLength", 63);
++
++            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTask", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<int?>("AssignedToId")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<int>("CreatedById")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime?>("Deadline")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Description")
++                        .HasColumnType("text");
++
++                    b.Property<int>("Position")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("ProjectPageId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("Status")
++                        .HasColumnType("integer");
++
++                    b.Property<string>("Title")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<DateTime>("UpdatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("AssignedToId");
++
++                    b.HasIndex("CreatedById");
++
++                    b.HasIndex("ProjectPageId");
++
++                    b.ToTable("BoardTasks");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTaskHistory", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<string>("ActionType")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int?>("BoardTaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Details")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("StatusAfter")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("StatusBefore")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("TaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("BoardTaskId");
++
++                    b.HasIndex("UserId");
++
++                    b.ToTable("TaskHistories");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Comment", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<int?>("BoardtaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<int>("TaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<string>("Text")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("BoardtaskId");
++
++                    b.HasIndex("UserId");
++
++                    b.ToTable("Comments");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Member", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<int?>("AllowedPageId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("ProjectId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("Role")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("AllowedPageId");
++
++                    b.HasIndex("ProjectId");
++
++                    b.HasIndex("UserId", "ProjectId")
++                        .IsUnique();
++
++                    b.ToTable("Members");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Project", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Name")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("Theme")
++                        .HasColumnType("text");
++
++                    b.HasKey("Id");
++
++                    b.ToTable("Projects");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.ProjectPage", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<string>("Name")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("ProjectId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("ProjectId");
++
++                    b.ToTable("ProjectPages");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.TelegramLink", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<DateTime?>("CodeExpiresAtUtc")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<DateTime>("CreatedAtUtc")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<bool>("IsLinked")
++                        .HasColumnType("boolean");
++
++                    b.Property<string>("LinkCode")
++                        .HasColumnType("text");
++
++                    b.Property<long?>("TelegramId")
++                        .HasColumnType("bigint");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("UserId");
++
++                    b.ToTable("TelegramLinks");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.User", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Email")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("PasswordHash")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("UserName")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.HasKey("Id");
++
++                    b.ToTable("Users");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.UserNotification", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<string>("Provider")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("ProviderUserId")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("UserId", "Provider")
++                        .IsUnique();
++
++                    b.ToTable("UserNotifications");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTask", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.User", "AssignedTo")
++                        .WithMany()
++                        .HasForeignKey("AssignedToId");
++
++                    b.HasOne("CAESAR.Server.Models.User", "CreatedBy")
++                        .WithMany()
++                        .HasForeignKey("CreatedById")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.HasOne("CAESAR.Server.Models.ProjectPage", "ProjectPage")
++                        .WithMany()
++                        .HasForeignKey("ProjectPageId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("AssignedTo");
++
++                    b.Navigation("CreatedBy");
++
++                    b.Navigation("ProjectPage");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTaskHistory", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.BoardTask", "BoardTask")
++                        .WithMany()
++                        .HasForeignKey("BoardTaskId");
++
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("BoardTask");
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Comment", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.BoardTask", "Boardtask")
++                        .WithMany()
++                        .HasForeignKey("BoardtaskId");
++
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("Boardtask");
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Member", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.ProjectPage", "AllowedPage")
++                        .WithMany()
++                        .HasForeignKey("AllowedPageId");
++
++                    b.HasOne("CAESAR.Server.Models.Project", "Project")
++                        .WithMany()
++                        .HasForeignKey("ProjectId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("AllowedPage");
++
++                    b.Navigation("Project");
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.ProjectPage", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.Project", "Project")
++                        .WithMany()
++                        .HasForeignKey("ProjectId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("Project");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.TelegramLink", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.UserNotification", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("User");
++                });
++#pragma warning restore 612, 618
++        }
++    }
++}
+diff --git a/CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.cs b/CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.cs
+new file mode 100644
+index 0000000..7c3cf46
+--- /dev/null
++++ b/CAESAR.Server/Migrations/20260629000000_AddCreatedAtToUser.cs
+@@ -0,0 +1,30 @@
++using System;
++using Microsoft.EntityFrameworkCore.Migrations;
++
++#nullable disable
++
++namespace CAESAR.Server.Migrations
++{
++    /// <inheritdoc />
++    public partial class AddCreatedAtToUser : Migration
++    {
++        /// <inheritdoc />
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.AddColumn<DateTime>(
++                name: "CreatedAt",
++                table: "Users",
++                type: "timestamp with time zone",
++                nullable: false,
++                defaultValueSql: "now()");
++        }
++
++        /// <inheritdoc />
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropColumn(
++                name: "CreatedAt",
++                table: "Users");
++        }
++    }
++}
+diff --git a/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs b/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs
+index 59e00f3..69d73a8 100644
+--- a/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs
++++ b/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs
+@@ -266,6 +266,9 @@ namespace CAESAR.Server.Migrations
+ 
+                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+ 
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
+                     b.Property<string>("Email")
+                         .IsRequired()
+                         .HasColumnType("text");
+diff --git a/CAESAR.Server/Models/User.cs b/CAESAR.Server/Models/User.cs
+index 7ffedf8..19f3efb 100644
+--- a/CAESAR.Server/Models/User.cs
++++ b/CAESAR.Server/Models/User.cs
+@@ -1,4 +1,4 @@
+-﻿namespace CAESAR.Server.Models
++namespace CAESAR.Server.Models
+ {
+     public class User
+     {
+@@ -6,5 +6,9 @@
+         public string UserName { get; set; } = string.Empty;
+         public string Email { get; set; } = string.Empty;
+         public string PasswordHash { get; set; } = string.Empty;
++
++        // Дата регистрации пользователя (фиксируется один раз при создании аккаунта
++        // и больше не меняется — не путать с датой последнего входа).
++        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+     }
+ }
+diff --git a/CAESAR.Server/Program.cs b/CAESAR.Server/Program.cs
+index c4bac59..52eb4fc 100644
+--- a/CAESAR.Server/Program.cs
++++ b/CAESAR.Server/Program.cs
+@@ -68,6 +68,14 @@ namespace CAESAR.Server
+ 
+             var app = builder.Build();
+ 
++            // За облачным балансировщиком/прокси (Render, Railway, Cloud Run, Nginx)
++            // TLS терминируется снаружи — пробрасываем оригинальную схему и IP клиента.
++            app.UseForwardedHeaders(new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
++            {
++                ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
++                                 | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
++            });
++
+             app.UseDefaultFiles();
+             app.MapStaticAssets();
+ 
+@@ -80,9 +88,12 @@ namespace CAESAR.Server
+ 
+                 app.UseCors("ClientDev");
+             }
+-            else
++
++            // HTTPS-редирект включаем только явным флагом (ForceHttpsRedirect=true).
++            // В облаке TLS обычно терминирует прокси, и принудительный редирект
++            // внутри контейнера приводит к циклу — по умолчанию выключен.
++            if (builder.Configuration.GetValue<bool>("ForceHttpsRedirect"))
+             {
+-                // HTTPS-редирект только вне разработки, чтобы не ломать Vite-прокси (http://localhost:5254)
+                 app.UseHttpsRedirection();
+             }
+ 
+diff --git a/bot/.dockerignore b/bot/.dockerignore
+new file mode 100644
+index 0000000..54ac30e
+--- /dev/null
++++ b/bot/.dockerignore
+@@ -0,0 +1,9 @@
++__pycache__/
++*.pyc
++*.pyo
++.env
++bot.db
++*.db
++.venv/
++venv/
++.git/
+diff --git a/bot/Dockerfile b/bot/Dockerfile
+new file mode 100644
+index 0000000..0e48b2e
+--- /dev/null
++++ b/bot/Dockerfile
+@@ -0,0 +1,29 @@
++# syntax=docker/dockerfile:1
++# ----------------------------------------------------------------------------
++# CAESAR Telegram-бот (aiogram + OpenAI). Long-polling, состояние в SQLite.
++# Для облака смонтируйте том на /data, чтобы привязки переживали рестарты.
++# ----------------------------------------------------------------------------
++FROM python:3.12-slim
++
++ENV PYTHONUNBUFFERED=1 \
++    PYTHONDONTWRITEBYTECODE=1 \
++    BOT_DB_PATH=/data/bot.db
++
++WORKDIR /app
++
++# Зависимости отдельным слоем для кэша
++COPY requirements.txt .
++RUN pip install --no-cache-dir -r requirements.txt
++
++# Исходный код бота
++COPY . .
++
++# Каталог для SQLite-базы (том в проде)
++RUN mkdir -p /data \
++    && adduser --disabled-password --gecos "" appuser \
++    && chown -R appuser:appuser /app /data
++USER appuser
++
++VOLUME ["/data"]
++
++CMD ["python", "bot.py"]
+diff --git a/bot/db.py b/bot/db.py
+index 928e36f..650c786 100644
+--- a/bot/db.py
++++ b/bot/db.py
+@@ -1,7 +1,8 @@
++import os
+ import sqlite3
+ from contextlib import closing
+ 
+-DB_PATH = "bot.db"
++DB_PATH = os.environ.get("BOT_DB_PATH", "bot.db")
+ 
+ 
+ def init() -> None:
+diff --git a/caesar.client/src/App.tsx b/caesar.client/src/App.tsx
+index 84e8136..bd677a0 100644
+--- a/caesar.client/src/App.tsx
++++ b/caesar.client/src/App.tsx
+@@ -84,10 +84,31 @@ function App() {
+     setCurrentScreen('board');
+   };
+ 
+-  const handleSelectProject = (_projectId: number) => {
+-    // TODO: Загрузить страницы проекта и выбрать первую
+-    setSelectedPageId(1);
+-    setCurrentScreen('board');
++  const handleSelectProject = async (
++    projectId: number,
++    name?: string,
++    theme?: string,
++  ) => {
++    // Загружаем страницы выбранного проекта и открываем доску ИМЕННО его
++    // первой страницы — иначе доска всегда показывала задачи страницы №1
++    // (из-за чего задачи «перетекали» между всеми проектами).
++    try {
++      const response = await api.getProjectPages(projectId);
++      const pages = response.data || [];
++      const firstPageId = pages.length > 0 ? pages[0].id : null;
++
++      if (firstPageId) {
++        setSelectedPageId(firstPageId);
++        setProjectName(name || 'Проект');
++        setProjectTheme(theme || '');
++        setCurrentScreen('board');
++      } else {
++        // У проекта ещё нет ни одной доски — отправляем в мастер создания
++        setCurrentScreen('setup');
++      }
++    } catch (error) {
++      console.error('Ошибка загрузки страниц проекта:', error);
++    }
+   };
+ 
+   const handleLogout = () => {
+@@ -191,8 +212,14 @@ function App() {
+       username: currentUser?.username || 'Пользователь',
+       email: currentUser?.email || '',
+       role: currentUser?.role || 'Участник',
+-      createdAt: new Date().toLocaleDateString('ru-RU'),
+-      projectsCount: 0,
++      createdAt: currentUser?.createdAt
++        ? new Date(currentUser.createdAt).toLocaleDateString('ru-RU', {
++            day: '2-digit',
++            month: 'long',
++            year: 'numeric',
++          })
++        : '—',
++      projectsCount: currentUser?.projectsCount ?? 0,
+     };
+ 
+     return (
+@@ -208,7 +235,7 @@ function App() {
+   if (currentScreen === 'admin') {
+     return (
+       <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Панель администратора" active="admin">
+-        <Admin onBack={() => setCurrentScreen('projects')} />
++        <Admin />
+       </AppShell>
+     );
+   }
+diff --git a/caesar.client/src/components/Board/Board.tsx b/caesar.client/src/components/Board/Board.tsx
+index 7ebd625..0c6a835 100644
+--- a/caesar.client/src/components/Board/Board.tsx
++++ b/caesar.client/src/components/Board/Board.tsx
+@@ -1,6 +1,14 @@
+ import { useState } from 'react';
+-import { DndContext, DragOverlay } from '@dnd-kit/core';
+-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
++import {
++  DndContext,
++  DragOverlay,
++  PointerSensor,
++  TouchSensor,
++  useSensor,
++  useSensors,
++  defaultDropAnimationSideEffects,
++} from '@dnd-kit/core';
++import type { DragEndEvent, DragStartEvent, DropAnimation } from '@dnd-kit/core';
+ import { useTasks } from '../../hooks/useTasks';
+ import type { Task, TaskStatus } from '../../types';
+ import { STATUS_ORDER } from '../../types';
+@@ -24,6 +32,29 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
+   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+ 
++  // Сенсоры с порогом активации: короткий клик открывает задачу,
++  // а перетаскивание начинается только после небольшого смещения —
++  // это убирает «залипание» и конфликт клика с драгом.
++  const sensors = useSensors(
++    useSensor(PointerSensor, {
++      activationConstraint: { distance: 6 },
++    }),
++    useSensor(TouchSensor, {
++      activationConstraint: { delay: 150, tolerance: 8 },
++    }),
++  );
++
++  // Плавная анимация «приземления» карточки в новую колонку.
++  const dropAnimation: DropAnimation = {
++    duration: 220,
++    easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
++    sideEffects: defaultDropAnimationSideEffects({
++      styles: {
++        active: { opacity: '0.35' },
++      },
++    }),
++  };
++
+   const handleTaskClick = (task: Task) => {
+     setSelectedTask(task);
+     setIsDetailsOpen(true);
+@@ -89,7 +120,7 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
+   }
+ 
+   return (
+-    <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
++    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+       <div className="board">
+         <div className="board__header">
+           <h1 className="board__title"><Icon name="board" size={22} /> Доска задач</h1>
+@@ -110,9 +141,11 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
+         </div>
+       </div>
+ 
+-      <DragOverlay>
++      <DragOverlay dropAnimation={dropAnimation}>
+         {activeTask ? (
+-          <TaskCard task={activeTask} onClick={handleTaskClick} />
++          <div className="task-card--overlay">
++            <TaskCard task={activeTask} onClick={handleTaskClick} />
++          </div>
+         ) : null}
+       </DragOverlay>
+ 
+diff --git a/caesar.client/src/components/Column/Column.css b/caesar.client/src/components/Column/Column.css
+index de32795..90d0b59 100644
+--- a/caesar.client/src/components/Column/Column.css
++++ b/caesar.client/src/components/Column/Column.css
+@@ -9,6 +9,7 @@
+   display: flex;
+   flex-direction: column;
+   max-height: 100%;
++  transition: background 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
+ }
+ 
+ .column__header {
+@@ -53,6 +54,7 @@
+ .column--drag-over {
+   background: var(--c-surface-3);
+   border: 1px dashed var(--c-border-strong);
++  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 24px -8px rgba(255, 255, 255, 0.12);
+ }
+ 
+ @media (max-width: 1024px) {
+diff --git a/caesar.client/src/components/GlassCard3D/GlassCard3D.css b/caesar.client/src/components/GlassCard3D/GlassCard3D.css
+index 0f0ac84..fcd1baa 100644
+--- a/caesar.client/src/components/GlassCard3D/GlassCard3D.css
++++ b/caesar.client/src/components/GlassCard3D/GlassCard3D.css
+@@ -211,4 +211,198 @@
+   width: 100%;
+   display: flex;
+   justify-content: center;
+-}
+\ No newline at end of file
++}
++/* ====================================================== */
++/* ИИ-ЯДРО — анимация ожидания запроса (тема: ИИ)          */
++/* ====================================================== */
++.glass-chat__placeholder {
++  flex: 1;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  justify-content: center;
++  gap: 26px;
++}
++
++.ai-core {
++  position: relative;
++  width: 132px;
++  height: 132px;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  color: rgba(255, 255, 255, 0.9);
++}
++
++/* Пульсирующие кольца, расходящиеся от центра */
++.ai-core__ring {
++  position: absolute;
++  top: 50%;
++  left: 50%;
++  width: 46px;
++  height: 46px;
++  margin: -23px 0 0 -23px;
++  border-radius: 50%;
++  border: 1px solid rgba(255, 255, 255, 0.25);
++  animation: aiRing 3.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
++}
++.ai-core__ring--delay { animation-delay: 1.7s; }
++
++@keyframes aiRing {
++  0%   { transform: scale(0.5); opacity: 0; }
++  20%  { opacity: 0.7; }
++  100% { transform: scale(2.6); opacity: 0; }
++}
++
++/* Орбиты с частицами */
++.ai-core__orbit {
++  position: absolute;
++  top: 50%;
++  left: 50%;
++  border-radius: 50%;
++  border: 1px solid rgba(255, 255, 255, 0.06);
++  transform: translate(-50%, -50%) rotate(0deg);
++}
++.ai-core__orbit--1 {
++  width: 100px; height: 100px;
++  margin: -50px 0 0 -50px;
++  animation: aiSpin 7s linear infinite;
++}
++.ai-core__orbit--2 {
++  width: 130px; height: 130px;
++  margin: -65px 0 0 -65px;
++  border-color: rgba(255, 255, 255, 0.05);
++  animation: aiSpin 11s linear infinite reverse;
++}
++.ai-core__orbit--3 {
++  width: 76px; height: 76px;
++  margin: -38px 0 0 -38px;
++  border-color: rgba(255, 255, 255, 0.08);
++  animation: aiSpin 5s linear infinite;
++}
++@keyframes aiSpin {
++  to { transform: translate(-50%, -50%) rotate(360deg); }
++}
++
++.ai-core__particle {
++  position: absolute;
++  top: -3px;
++  left: 50%;
++  width: 6px;
++  height: 6px;
++  margin-left: -3px;
++  border-radius: 50%;
++  background: #ffffff;
++  box-shadow: 0 0 12px rgba(255, 255, 255, 0.8), 0 0 24px rgba(255, 255, 255, 0.4);
++}
++.ai-core__orbit--2 .ai-core__particle {
++  width: 4px; height: 4px; margin-left: -2px; top: -2px;
++  box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
++}
++.ai-core__orbit--3 .ai-core__particle {
++  width: 5px; height: 5px; margin-left: -2.5px;
++  background: rgba(255, 255, 255, 0.85);
++}
++
++/* Нейросетевое ядро в центре */
++.ai-core__brain {
++  position: relative;
++  z-index: 2;
++  width: 52px;
++  height: 52px;
++  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
++  animation: aiBreathe 4s ease-in-out infinite;
++}
++@keyframes aiBreathe {
++  0%, 100% { opacity: 0.85; transform: scale(1); }
++  50%      { opacity: 1; transform: scale(1.06); }
++}
++
++.ai-core__node {
++  fill: rgba(255, 255, 255, 0.08);
++  animation: aiNode 2.6s ease-in-out infinite;
++}
++.ai-core__node--center {
++  fill: rgba(255, 255, 255, 0.18);
++  animation-duration: 2s;
++}
++.ai-core__brain circle:nth-child(2) { animation-delay: 0.2s; }
++.ai-core__brain circle:nth-child(3) { animation-delay: 0.5s; }
++.ai-core__brain circle:nth-child(4) { animation-delay: 0.8s; }
++.ai-core__brain circle:nth-child(5) { animation-delay: 1.1s; }
++@keyframes aiNode {
++  0%, 100% { opacity: 0.4; }
++  50%      { opacity: 1; }
++}
++
++.ai-core__synapse {
++  stroke: rgba(255, 255, 255, 0.4);
++  stroke-dasharray: 4 6;
++  animation: aiSynapse 1.6s linear infinite;
++}
++@keyframes aiSynapse {
++  to { stroke-dashoffset: -20; }
++}
++
++/* Луч-сканер, проходящий по ядру */
++.ai-core__scan {
++  position: absolute;
++  top: 50%;
++  left: 50%;
++  width: 64px;
++  height: 64px;
++  margin: -32px 0 0 -32px;
++  border-radius: 50%;
++  background: conic-gradient(
++    from 0deg,
++    transparent 0deg,
++    rgba(255, 255, 255, 0.18) 40deg,
++    transparent 90deg
++  );
++  animation: aiSpin2 3s linear infinite;
++}
++@keyframes aiSpin2 {
++  to { transform: rotate(360deg); }
++}
++
++/* Статус под ядром */
++.glass-chat__status {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++}
++.glass-chat__dots {
++  display: inline-flex;
++  gap: 4px;
++}
++.glass-chat__dots span {
++  width: 5px;
++  height: 5px;
++  border-radius: 50%;
++  background: rgba(255, 255, 255, 0.5);
++  animation: aiDots 1.4s ease-in-out infinite;
++}
++.glass-chat__dots span:nth-child(2) { animation-delay: 0.2s; }
++.glass-chat__dots span:nth-child(3) { animation-delay: 0.4s; }
++@keyframes aiDots {
++  0%, 100% { opacity: 0.25; transform: translateY(0); }
++  50%      { opacity: 1; transform: translateY(-3px); }
++}
++.glass-chat__hint {
++  color: rgba(255, 255, 255, 0.28);
++  font-size: 14px;
++  font-weight: 300;
++  letter-spacing: 2px;
++  margin: 0;
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .ai-core__ring,
++  .ai-core__orbit,
++  .ai-core__brain,
++  .ai-core__node,
++  .ai-core__synapse,
++  .ai-core__scan,
++  .glass-chat__dots span { animation: none; }
++  .ai-core__ring { opacity: 0.3; transform: scale(1.4); }
++}
+diff --git a/caesar.client/src/components/GlassCard3D/GlassCard3D.tsx b/caesar.client/src/components/GlassCard3D/GlassCard3D.tsx
+index 858c6f7..97cb5ec 100644
+--- a/caesar.client/src/components/GlassCard3D/GlassCard3D.tsx
++++ b/caesar.client/src/components/GlassCard3D/GlassCard3D.tsx
+@@ -20,10 +20,44 @@ export const GlassCard3D = () => {
+     <div className="glass-chat-wrapper">
+       <div className="glass-chat-overlay">
+         
+-        {/* Заглушка для будущего ИИ (пустое пространство) */}
++        {/* ИИ-ядро: ожидание запроса пользователя */}
+         <div className="glass-chat__placeholder">
+-          <div className="glass-chat__indicator"></div>
+-          <p className="glass-chat__hint">Ожидание запроса...</p>
++          <div className="ai-core" aria-hidden="true">
++            {/* Орбиты с частицами */}
++            <div className="ai-core__orbit ai-core__orbit--1">
++              <span className="ai-core__particle"></span>
++            </div>
++            <div className="ai-core__orbit ai-core__orbit--2">
++              <span className="ai-core__particle"></span>
++            </div>
++            <div className="ai-core__orbit ai-core__orbit--3">
++              <span className="ai-core__particle"></span>
++            </div>
++
++            {/* Пульсирующие кольца */}
++            <span className="ai-core__ring"></span>
++            <span className="ai-core__ring ai-core__ring--delay"></span>
++
++            {/* Нейросетевое ядро */}
++            <svg className="ai-core__brain" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
++              <circle cx="24" cy="24" r="4" className="ai-core__node ai-core__node--center" />
++              <circle cx="11" cy="15" r="2.4" className="ai-core__node" />
++              <circle cx="37" cy="14" r="2.4" className="ai-core__node" />
++              <circle cx="12" cy="34" r="2.4" className="ai-core__node" />
++              <circle cx="36" cy="35" r="2.4" className="ai-core__node" />
++              <path d="M13 16 L22 22 M35 15 L26 22 M14 33 L22 26 M34 34 L26 26" className="ai-core__synapse" />
++            </svg>
++
++            {/* Луч-сканер */}
++            <span className="ai-core__scan"></span>
++          </div>
++
++          <div className="glass-chat__status">
++            <span className="glass-chat__dots">
++              <span></span><span></span><span></span>
++            </span>
++            <p className="glass-chat__hint">Ожидание запроса...</p>
++          </div>
+         </div>
+ 
+         {/* Поле ввода */}
+diff --git a/caesar.client/src/components/TaskCard/TaskCard.css b/caesar.client/src/components/TaskCard/TaskCard.css
+index 2358227..a37e249 100644
+--- a/caesar.client/src/components/TaskCard/TaskCard.css
++++ b/caesar.client/src/components/TaskCard/TaskCard.css
+@@ -67,3 +67,26 @@
+   .task-card { padding: 7px 9px; }
+   .task-card__title { font-size: 11px; }
+ }
++
++/* ---- Карточка во время перетаскивания (рисуется в DragOverlay) ---- */
++.task-card--overlay {
++  cursor: grabbing;
++  transform: rotate(2deg) scale(1.03);
++  animation: taskLift 0.18s cubic-bezier(0.16, 1, 0.3, 1);
++}
++.task-card--overlay .task-card {
++  border-color: var(--c-border-strong, rgba(255, 255, 255, 0.28));
++  box-shadow:
++    0 22px 50px -12px rgba(0, 0, 0, 0.85),
++    0 0 0 1px rgba(255, 255, 255, 0.08);
++  transform: none;
++}
++
++@keyframes taskLift {
++  from { transform: rotate(0deg) scale(1); }
++  to   { transform: rotate(2deg) scale(1.03); }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .task-card--overlay { animation: none; transform: scale(1.02); }
++}
+diff --git a/caesar.client/src/components/TaskCard/TaskCard.tsx b/caesar.client/src/components/TaskCard/TaskCard.tsx
+index 5a7e095..0b5a4da 100644
+--- a/caesar.client/src/components/TaskCard/TaskCard.tsx
++++ b/caesar.client/src/components/TaskCard/TaskCard.tsx
+@@ -1,6 +1,5 @@
+ import { useDraggable } from '@dnd-kit/core';
+ import { CSS } from '@dnd-kit/utilities';
+-import { useState } from 'react';
+ import type { Task } from '../../types';
+ import { STATUS_LABELS } from '../../types';
+ import { getDeadlineStatus, formatDate } from '../../utils/dateHelpers';
+@@ -13,10 +12,15 @@ interface TaskCardProps {
+ }
+ 
+ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
+-  const [isDragging, setIsDragging] = useState(false);
+   const deadlineStatus = getDeadlineStatus(task.deadline);
+-  
+-  const { attributes, listeners, setNodeRef, transform, isDragging: isDndDragging } = useDraggable({
++
++  const {
++    attributes,
++    listeners,
++    setNodeRef,
++    transform,
++    isDragging,
++  } = useDraggable({
+     id: task.id,
+     data: {
+       task,
+@@ -24,10 +28,11 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
+     },
+   });
+ 
+-  const style = {
++  // Скрываем исходную карточку, пока она «летит» в DragOverlay — это убирает
++  // двоение и рывки. Реальный визуал во время перетаскивания рисует overlay.
++  const style: React.CSSProperties = {
+     transform: CSS.Translate.toString(transform),
+-    opacity: isDndDragging ? 0.5 : 1,
+-    cursor: isDragging ? 'grabbing' : 'grab',
++    opacity: isDragging ? 0 : 1,
+   };
+ 
+   const getStatusClassName = () => {
+@@ -38,19 +43,10 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
+     }
+   };
+ 
+-  const handleMouseDown = () => {
+-    setIsDragging(false);
+-  };
+-
+-  const handleMouseMove = () => {
+-    setIsDragging(true);
+-  };
+-
++  // Порог активации в сенсоре сам отличает клик от драга:
++  // обычный клик (без смещения) не запускает перетаскивание и спокойно открывает задачу.
+   const handleClick = () => {
+-    if (isDragging) {
+-      setIsDragging(false);
+-      return;
+-    }
++    if (isDragging) return;
+     onClick(task);
+   };
+ 
+@@ -61,8 +57,6 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
+       {...listeners}
+       {...attributes}
+       className={`task-card ${getStatusClassName()}`}
+-      onMouseDown={handleMouseDown}
+-      onMouseMove={handleMouseMove}
+       onClick={handleClick}
+     >
+       <div className="task-card__header">
+@@ -71,9 +65,9 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
+           {STATUS_LABELS[task.status]}
+         </span>
+       </div>
+-      
++
+       <h4 className="task-card__title">{task.title}</h4>
+-      
++
+       <div className="task-card__footer">
+         {task.deadline && (
+           <span className="task-card__deadline">
+@@ -88,4 +82,4 @@ export const TaskCard = ({ task, onClick }: TaskCardProps) => {
+       </div>
+     </div>
+   );
+-};
+\ No newline at end of file
++};
+diff --git a/caesar.client/src/pages/Admin/Admin.tsx b/caesar.client/src/pages/Admin/Admin.tsx
+index 552b59e..339c162 100644
+--- a/caesar.client/src/pages/Admin/Admin.tsx
++++ b/caesar.client/src/pages/Admin/Admin.tsx
+@@ -22,11 +22,7 @@ interface AdminProject {
+   status?: 'active' | 'archived';
+ }
+ 
+-interface AdminProps {
+-  onBack?: () => void;
+-}
+-
+-export const Admin = ({ onBack }: AdminProps) => {
++export const Admin = () => {
+   const api = useApi();
+   const [activeTab, setActiveTab] = useState<'users' | 'projects'>('users');
+   const [users, setUsers] = useState<AdminUser[]>([]);
+@@ -59,8 +55,8 @@ export const Admin = ({ onBack }: AdminProps) => {
+         id: project.id,
+         name: project.name || 'Без названия',
+         theme: project.theme || '',
+-        userCount: project.userCount || 0,
+-        taskCount: project.taskCount || 0,
++        userCount: project.membersCount ?? project.userCount ?? 0,
++        taskCount: project.tasksCount ?? project.taskCount ?? 0,
+         status: project.status || 'active'
+       }));
+ 
+@@ -105,12 +101,6 @@ export const Admin = ({ onBack }: AdminProps) => {
+ 
+   return (
+     <div className="admin-container">
+-      {onBack && (
+-        <button className="admin-back" onClick={onBack}>
+-          ← Назад
+-        </button>
+-      )}
+-
+       <div className="admin-stats">
+         <div className="admin-stat">
+           <span className="admin-stat__number">{users.length}</span>
+diff --git a/caesar.client/src/pages/Landing/Landing.css b/caesar.client/src/pages/Landing/Landing.css
+index 47606b2..03cf3a6 100644
+--- a/caesar.client/src/pages/Landing/Landing.css
++++ b/caesar.client/src/pages/Landing/Landing.css
+@@ -524,6 +524,117 @@ body {
+ .landing-code__number { color: #fb923c; }
+ .landing-code__comment { color: #6b7280; font-style: italic; }
+ 
++/* ---- Карточка «Путь пользователя в CAESAR» (структурированные шаги) ---- */
++.path-window {
++  padding: 0;
++  overflow: hidden;
++}
++.path-window::before { top: 14px; }
++.path-window__head {
++  padding: 38px 24px 14px;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
++}
++.path-window__title {
++  font-family: 'Courier New', monospace;
++  font-size: 13px;
++  color: #6b7280;
++  letter-spacing: 0.5px;
++}
++
++.path-steps {
++  list-style: none;
++  margin: 0;
++  padding: 12px 22px 22px;
++  display: flex;
++  flex-direction: column;
++}
++.path-step {
++  position: relative;
++  display: flex;
++  gap: 16px;
++  padding: 16px 0;
++}
++/* Вертикальная линия-коннектор между шагами */
++.path-step::before {
++  content: '';
++  position: absolute;
++  left: 15px;
++  top: 44px;
++  bottom: -4px;
++  width: 1px;
++  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02));
++}
++.path-step:last-child::before { display: none; }
++
++.path-step__num {
++  position: relative;
++  z-index: 1;
++  flex-shrink: 0;
++  width: 32px;
++  height: 32px;
++  border-radius: 50%;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  font-family: 'Cinzel', serif;
++  font-size: 15px;
++  font-weight: 600;
++  color: #ffffff;
++  background: rgba(255, 255, 255, 0.06);
++  border: 1px solid rgba(255, 255, 255, 0.14);
++  box-shadow: 0 0 0 4px rgba(13, 13, 13, 1);
++  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
++}
++.path-step:hover .path-step__num {
++  background: #ffffff;
++  color: #0d0d0d;
++  border-color: #ffffff;
++  box-shadow: 0 0 0 4px rgba(13, 13, 13, 1), 0 0 18px rgba(255, 255, 255, 0.3);
++}
++
++.path-step__body { padding-top: 3px; }
++.path-step__title {
++  margin: 0 0 8px;
++  font-size: 15px;
++  font-weight: 600;
++  letter-spacing: 0.3px;
++  color: #ffffff;
++}
++.path-step__list {
++  list-style: none;
++  margin: 0;
++  padding: 0;
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++}
++.path-step__list li {
++  position: relative;
++  padding-left: 18px;
++  font-size: 13.5px;
++  line-height: 1.5;
++  color: #9aa0a6;
++}
++.path-step__list li::before {
++  content: '→';
++  position: absolute;
++  left: 0;
++  color: rgba(255, 255, 255, 0.35);
++}
++.path-step__list li.path-step__done {
++  color: #d4d4d4;
++}
++.path-step__list li.path-step__done::before {
++  content: '✓';
++  color: #22c55e;
++  font-weight: 700;
++}
++
++@media (min-width: 768px) {
++  .path-window__head { padding: 38px 28px 14px; }
++  .path-steps { padding: 14px 28px 26px; }
++}
++
+ .landing-team {
+   background: #181818; border-radius: 48px; padding: 40px 24px;
+   box-shadow: 0 20px 40px -12px rgba(0,0,0,0.6);
+diff --git a/caesar.client/src/pages/Landing/Landing.tsx b/caesar.client/src/pages/Landing/Landing.tsx
+index f123bd9..4c956c8 100644
+--- a/caesar.client/src/pages/Landing/Landing.tsx
++++ b/caesar.client/src/pages/Landing/Landing.tsx
+@@ -161,31 +161,61 @@ export const Landing = ({ onNavigate }: LandingProps) => {
+               </ul>
+             </div>
+             <div className="landing-code__right">
+-              <div className="landing-code__window">
+-                <pre>
+-<span className="landing-code__comment"># Путь пользователя в CAESAR</span>
+-
+-<span className="landing-code__number">1.</span> <span className="landing-code__keyword">РЕГИСТРАЦИЯ</span>
+-   → Создайте аккаунт за 30 секунд
+-   → Подтвердите Email
+-   → Готово к работе!
+-
+-<span className="landing-code__number">2.</span> <span className="landing-code__keyword">ВХОД В СИСТЕМУ</span>
+-   → Введите логин и пароль
+-   → (Опционально) Вход через Telegram
+-   → Мгновенный доступ к личному кабинету
+-
+-<span className="landing-code__number">3.</span> <span className="landing-code__keyword">СПИСОК ВАШИХ ДОСОК</span>
+-   → Обзор всех активных проектов
+-   → Сортировка по дате, статусу, участникам
+-   → <span className="landing-code__string">Нажмите на доску, чтобы открыть</span>
+-
+-<span className="landing-code__number">4.</span> <span className="landing-code__keyword">СОЗДАТЬ НОВЫЙ ПРОЕКТ</span>
+-   → Нажмите кнопку <span className="landing-code__string">«Создать проект»</span>
+-   → Введите название проекта
+-   → Выберите шаблон (IT / Маркетинг / Дизайн)
+-   → Готово! Доска создана.
+-                </pre>
++              <div className="landing-code__window path-window">
++                <div className="path-window__head">
++                  <span className="path-window__title"># Путь пользователя в CAESAR</span>
++                </div>
++
++                <ol className="path-steps">
++                  <li className="path-step">
++                    <span className="path-step__num">1</span>
++                    <div className="path-step__body">
++                      <h4 className="path-step__title">Регистрация</h4>
++                      <ul className="path-step__list">
++                        <li>Создайте аккаунт за 30 секунд</li>
++                        <li>Подтвердите Email</li>
++                        <li className="path-step__done">Готово к работе</li>
++                      </ul>
++                    </div>
++                  </li>
++
++                  <li className="path-step">
++                    <span className="path-step__num">2</span>
++                    <div className="path-step__body">
++                      <h4 className="path-step__title">Вход в систему</h4>
++                      <ul className="path-step__list">
++                        <li>Введите логин и пароль</li>
++                        <li>Опционально — вход через Telegram</li>
++                        <li>Мгновенный доступ к личному кабинету</li>
++                      </ul>
++                    </div>
++                  </li>
++
++                  <li className="path-step">
++                    <span className="path-step__num">3</span>
++                    <div className="path-step__body">
++                      <h4 className="path-step__title">Список ваших досок</h4>
++                      <ul className="path-step__list">
++                        <li>Обзор всех активных проектов</li>
++                        <li>Сортировка по дате, статусу, участникам</li>
++                        <li>Нажмите на доску, чтобы открыть</li>
++                      </ul>
++                    </div>
++                  </li>
++
++                  <li className="path-step">
++                    <span className="path-step__num">4</span>
++                    <div className="path-step__body">
++                      <h4 className="path-step__title">Создать новый проект</h4>
++                      <ul className="path-step__list">
++                        <li>Нажмите «Создать проект»</li>
++                        <li>Введите название проекта</li>
++                        <li>Выберите шаблон: IT / Маркетинг / Дизайн</li>
++                        <li className="path-step__done">Доска создана</li>
++                      </ul>
++                    </div>
++                  </li>
++                </ol>
+               </div>
+             </div>
+           </div>
+diff --git a/caesar.client/src/pages/Projects/Projects.css b/caesar.client/src/pages/Projects/Projects.css
+index a4f8ea9..35763cb 100644
+--- a/caesar.client/src/pages/Projects/Projects.css
++++ b/caesar.client/src/pages/Projects/Projects.css
+@@ -132,6 +132,77 @@
+   color: var(--c-text-faint);
+ }
+ 
++/* ---- Индикатор выполнения проекта ---- */
++.project-card__progress {
++  display: flex;
++  flex-direction: column;
++  gap: 8px;
++}
++.project-card__progress-head {
++  display: flex;
++  align-items: baseline;
++  justify-content: space-between;
++}
++.project-card__progress-label {
++  font-size: 11px;
++  text-transform: uppercase;
++  letter-spacing: 1.4px;
++  color: var(--c-text-dim);
++}
++.project-card__progress-value {
++  font-family: var(--font-display);
++  font-size: 15px;
++  font-weight: 500;
++  letter-spacing: 0.5px;
++  color: var(--c-text);
++  font-variant-numeric: tabular-nums;
++}
++.project-card__progress-track {
++  position: relative;
++  height: 6px;
++  border-radius: var(--r-pill);
++  background: var(--c-surface-3);
++  border: 1px solid var(--c-border-2);
++  overflow: hidden;
++}
++.project-card__progress-fill {
++  position: relative;
++  height: 100%;
++  border-radius: var(--r-pill);
++  background: linear-gradient(90deg, rgba(255, 255, 255, 0.45) 0%, #ffffff 100%);
++  box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
++  transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
++  min-width: 0;
++}
++/* Лёгкий «бегущий блик» по заполненной части */
++.project-card__progress-fill::after {
++  content: '';
++  position: absolute;
++  inset: 0;
++  background: linear-gradient(
++    90deg,
++    transparent 0%,
++    rgba(255, 255, 255, 0.55) 50%,
++    transparent 100%
++  );
++  transform: translateX(-100%);
++  animation: projectProgressShine 2.8s ease-in-out infinite;
++}
++.project-card__progress-fill.is-complete {
++  background: linear-gradient(90deg, var(--c-success, #22c55e) 0%, #4ade80 100%);
++  box-shadow: 0 0 14px rgba(34, 197, 94, 0.4);
++}
++
++@keyframes projectProgressShine {
++  0% { transform: translateX(-100%); }
++  55%, 100% { transform: translateX(100%); }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .project-card__progress-fill::after { animation: none; }
++  .project-card__progress-fill { transition: none; }
++}
++
+ .project-card__status .status-badge {
+   display: inline-flex;
+   padding: 4px 12px;
+diff --git a/caesar.client/src/pages/Projects/Projects.tsx b/caesar.client/src/pages/Projects/Projects.tsx
+index 11c7ab0..15ba54e 100644
+--- a/caesar.client/src/pages/Projects/Projects.tsx
++++ b/caesar.client/src/pages/Projects/Projects.tsx
+@@ -11,10 +11,12 @@ interface Project {
+   createdAt?: string;
+   created_at?: string;
+   tasksCount?: number;
++  doneTasksCount?: number;
++  membersCount?: number;
+ }
+ 
+ interface ProjectsProps {
+-  onSelectProject: (projectId: number) => void;
++  onSelectProject: (projectId: number, name?: string, theme?: string) => void;
+   onCreateProject?: () => void;
+ }
+ 
+@@ -89,28 +91,54 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
+         </div>
+       ) : (
+         <div className="projects-grid">
+-          {projects.map((project) => (
+-            <div 
+-              key={project.id} 
+-              className="project-card"
+-              onClick={() => onSelectProject(project.id)}
+-            >
+-              <div className="project-card__header">
+-                {project.theme && (
+-                  <span className="project-card__theme">{project.theme}</span>
+-                )}
+-                <span className="project-card__role">{project.role || 'Участник'}</span>
+-              </div>
+-              <h3 className="project-card__name">{project.name}</h3>
+-              <div className="project-card__stats">
+-                <span><Icon name="calendar" size={14} /> {project.createdAt || project.created_at || '—'}</span>
+-                <span><Icon name="tasks" size={14} /> {project.tasksCount || 0} задач</span>
+-              </div>
+-              <div className="project-card__footer">
+-                <span className="project-card__enter">Перейти →</span>
++          {projects.map((project) => {
++            const total = project.tasksCount || 0;
++            const done = project.doneTasksCount || 0;
++            const percent = total > 0 ? Math.round((done / total) * 100) : 0;
++
++            return (
++              <div
++                key={project.id}
++                className="project-card"
++                onClick={() => onSelectProject(project.id, project.name, project.theme)}
++              >
++                <div className="project-card__header">
++                  {project.theme && (
++                    <span className="project-card__theme">{project.theme}</span>
++                  )}
++                  <span className="project-card__role">{project.role || 'Участник'}</span>
++                </div>
++                <h3 className="project-card__name">{project.name}</h3>
++
++                <div className="project-card__progress">
++                  <div className="project-card__progress-head">
++                    <span className="project-card__progress-label">Выполнение</span>
++                    <span className="project-card__progress-value">{percent}%</span>
++                  </div>
++                  <div
++                    className="project-card__progress-track"
++                    role="progressbar"
++                    aria-valuenow={percent}
++                    aria-valuemin={0}
++                    aria-valuemax={100}
++                  >
++                    <div
++                      className={`project-card__progress-fill${percent === 100 ? ' is-complete' : ''}`}
++                      style={{ width: `${percent}%` }}
++                    />
++                  </div>
++                </div>
++
++                <div className="project-card__stats">
++                  <span><Icon name="calendar" size={14} /> {project.createdAt || project.created_at || '—'}</span>
++                  <span><Icon name="tasks" size={14} /> {done}/{total} задач</span>
++                </div>
++                <div className="project-card__footer">
++                  <span className="project-card__enter">Перейти →</span>
++                </div>
+               </div>
+-            </div>
+-          ))}
++            );
++          })}
+         </div>
+       )}
+     </div>
+diff --git a/caesar.client/src/pages/Register/Register.css b/caesar.client/src/pages/Register/Register.css
+index 13d3400..e4c966e 100644
+--- a/caesar.client/src/pages/Register/Register.css
++++ b/caesar.client/src/pages/Register/Register.css
+@@ -425,4 +425,258 @@
+   animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+   animation-delay: 0.7s;
+   opacity: 0;
+-}
+\ No newline at end of file
++}
++/* ====================================================== */
++/* СОГЛАСИЕ 152-ФЗ — чекбокс + модальное окно             */
++/* ====================================================== */
++
++/* ---- Чекбокс согласия ---- */
++.register-consent {
++  display: flex;
++  align-items: flex-start;
++  gap: 11px;
++  margin: 2px 0 4px;
++  cursor: pointer;
++  user-select: none;
++}
++.register-consent__checkbox {
++  position: absolute;
++  opacity: 0;
++  width: 0;
++  height: 0;
++}
++.register-consent__box {
++  flex-shrink: 0;
++  width: 20px;
++  height: 20px;
++  margin-top: 1px;
++  border-radius: 6px;
++  border: 1px solid rgba(255, 255, 255, 0.18);
++  background: rgba(255, 255, 255, 0.04);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  color: #0a0a0a;
++  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
++}
++.register-consent__box svg {
++  opacity: 0;
++  transform: scale(0.5);
++  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
++}
++.register-consent__checkbox:checked + .register-consent__box {
++  background: #ffffff;
++  border-color: #ffffff;
++  box-shadow: 0 0 16px rgba(255, 255, 255, 0.25);
++}
++.register-consent__checkbox:checked + .register-consent__box svg {
++  opacity: 1;
++  transform: scale(1);
++}
++.register-consent__checkbox:focus-visible + .register-consent__box {
++  outline: 2px solid rgba(255, 255, 255, 0.4);
++  outline-offset: 2px;
++}
++.register-consent__text {
++  font-size: 13px;
++  line-height: 1.5;
++  color: rgba(255, 255, 255, 0.45);
++}
++.register-consent__link {
++  background: none;
++  border: none;
++  padding: 0;
++  font: inherit;
++  color: rgba(255, 255, 255, 0.85);
++  text-decoration: underline;
++  text-underline-offset: 2px;
++  cursor: pointer;
++  transition: color 0.2s;
++}
++.register-consent__link:hover { color: #ffffff; }
++
++/* ---- Модальное окно согласия ---- */
++.consent-modal {
++  position: fixed;
++  inset: 0;
++  z-index: 100;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  padding: 24px;
++  background: rgba(5, 5, 5, 0.72);
++  backdrop-filter: blur(8px);
++  -webkit-backdrop-filter: blur(8px);
++  animation: consentFade 0.25s ease forwards;
++}
++@keyframes consentFade {
++  from { opacity: 0; }
++  to   { opacity: 1; }
++}
++
++.consent-modal__card {
++  position: relative;
++  width: 100%;
++  max-width: 560px;
++  max-height: 86vh;
++  display: flex;
++  flex-direction: column;
++  border-radius: 24px;
++  background:
++    radial-gradient(circle at 18% 0%, rgba(60, 60, 60, 0.35) 0%, transparent 60%),
++    rgba(15, 15, 15, 0.92);
++  border: 1px solid rgba(255, 255, 255, 0.08);
++  box-shadow:
++    inset 0 0 60px rgba(255, 255, 255, 0.02),
++    0 40px 90px -20px rgba(0, 0, 0, 0.9);
++  overflow: hidden;
++  animation: consentRise 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
++}
++@keyframes consentRise {
++  from { opacity: 0; transform: translateY(16px) scale(0.98); }
++  to   { opacity: 1; transform: translateY(0) scale(1); }
++}
++
++.consent-modal__close {
++  position: absolute;
++  top: 18px;
++  right: 18px;
++  width: 34px;
++  height: 34px;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  border-radius: 50%;
++  background: rgba(255, 255, 255, 0.05);
++  border: 1px solid rgba(255, 255, 255, 0.08);
++  color: rgba(255, 255, 255, 0.55);
++  cursor: pointer;
++  transition: all 0.2s;
++}
++.consent-modal__close:hover {
++  background: rgba(255, 255, 255, 0.12);
++  color: #ffffff;
++}
++
++.consent-modal__header {
++  padding: 32px 36px 20px;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
++}
++.consent-modal__badge {
++  display: inline-block;
++  padding: 4px 12px;
++  border-radius: 999px;
++  font-size: 11px;
++  font-weight: 600;
++  letter-spacing: 1.5px;
++  color: rgba(255, 255, 255, 0.65);
++  background: rgba(255, 255, 255, 0.06);
++  border: 1px solid rgba(255, 255, 255, 0.1);
++  margin-bottom: 14px;
++}
++.consent-modal__title {
++  margin: 0 0 6px;
++  font-family: 'Cinzel', serif;
++  font-weight: 500;
++  font-size: 22px;
++  letter-spacing: 0.5px;
++  color: #ffffff;
++  line-height: 1.3;
++  padding-right: 32px;
++}
++.consent-modal__subtitle {
++  margin: 0;
++  font-size: 13px;
++  color: rgba(255, 255, 255, 0.35);
++}
++
++.consent-modal__body {
++  padding: 22px 36px 26px;
++  overflow-y: auto;
++  color: rgba(255, 255, 255, 0.62);
++  font-size: 14px;
++  line-height: 1.7;
++}
++.consent-modal__body p { margin: 0 0 14px; }
++.consent-modal__body ul {
++  margin: 0 0 14px;
++  padding-left: 4px;
++  list-style: none;
++  display: flex;
++  flex-direction: column;
++  gap: 8px;
++}
++.consent-modal__body li {
++  position: relative;
++  padding-left: 20px;
++}
++.consent-modal__body li::before {
++  content: '';
++  position: absolute;
++  left: 4px;
++  top: 9px;
++  width: 5px;
++  height: 5px;
++  border-radius: 50%;
++  background: rgba(255, 255, 255, 0.4);
++}
++.consent-modal__note {
++  margin-top: 4px;
++  padding: 14px 16px;
++  border-radius: 12px;
++  background: rgba(255, 255, 255, 0.04);
++  border: 1px solid rgba(255, 255, 255, 0.07);
++  color: rgba(255, 255, 255, 0.78);
++  font-size: 13.5px;
++}
++.consent-modal__body::-webkit-scrollbar { width: 6px; }
++.consent-modal__body::-webkit-scrollbar-thumb {
++  background: rgba(255, 255, 255, 0.12);
++  border-radius: 3px;
++}
++
++.consent-modal__footer {
++  display: flex;
++  gap: 12px;
++  justify-content: flex-end;
++  padding: 18px 36px 28px;
++  border-top: 1px solid rgba(255, 255, 255, 0.06);
++}
++.consent-modal__btn {
++  padding: 11px 22px;
++  border-radius: 999px;
++  font-size: 14px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
++}
++.consent-modal__btn--ghost {
++  background: transparent;
++  border: 1px solid rgba(255, 255, 255, 0.14);
++  color: rgba(255, 255, 255, 0.6);
++}
++.consent-modal__btn--ghost:hover {
++  border-color: rgba(255, 255, 255, 0.3);
++  color: #ffffff;
++}
++.consent-modal__btn--accent {
++  background: linear-gradient(135deg, #ffffff 0%, #e8e8e8 100%);
++  border: none;
++  color: #0a0a0a;
++  box-shadow: 0 8px 24px rgba(255, 255, 255, 0.12);
++}
++.consent-modal__btn--accent:hover {
++  transform: translateY(-2px);
++  box-shadow: 0 12px 32px rgba(255, 255, 255, 0.2);
++}
++
++@media (max-width: 560px) {
++  .consent-modal__header { padding: 28px 22px 18px; }
++  .consent-modal__body { padding: 20px 22px; }
++  .consent-modal__footer { padding: 16px 22px 24px; flex-direction: column-reverse; }
++  .consent-modal__btn { width: 100%; }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .consent-modal, .consent-modal__card { animation: none; }
++}
+diff --git a/caesar.client/src/pages/Register/Register.tsx b/caesar.client/src/pages/Register/Register.tsx
+index 27f3203..fe73cab 100644
+--- a/caesar.client/src/pages/Register/Register.tsx
++++ b/caesar.client/src/pages/Register/Register.tsx
+@@ -14,6 +14,8 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
+   const [password, setPassword] = useState('');
+   const [error, setError] = useState('');
+   const [loading, setLoading] = useState(false);
++  const [consent, setConsent] = useState(false);
++  const [isConsentOpen, setIsConsentOpen] = useState(false);
+ 
+   const api = useApi();
+ 
+@@ -31,6 +33,11 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
+       return;
+     }
+ 
++    if (!consent) {
++      setError('Необходимо согласие на обработку персональных данных');
++      return;
++    }
++
+     try {
+       setLoading(true);
+       console.log('Отправка регистрации:', { username, email, password: '***' });
+@@ -152,7 +159,32 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
+                   </div>
+                 </div>
+ 
+-                <button type="submit" className="register-submit" disabled={loading}>
++                <label className="register-consent">
++                  <input
++                    type="checkbox"
++                    className="register-consent__checkbox"
++                    checked={consent}
++                    onChange={(e) => setConsent(e.target.checked)}
++                    disabled={loading}
++                  />
++                  <span className="register-consent__box" aria-hidden="true">
++                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
++                      <polyline points="20 6 9 17 4 12" />
++                    </svg>
++                  </span>
++                  <span className="register-consent__text">
++                    Я ознакомлен(а) и согласен(на) с{' '}
++                    <button
++                      type="button"
++                      className="register-consent__link"
++                      onClick={(e) => { e.preventDefault(); setIsConsentOpen(true); }}
++                    >
++                      обработкой персональных данных
++                    </button>
++                  </span>
++                </label>
++
++                <button type="submit" className="register-submit" disabled={loading || !consent}>
+                   {loading ? (
+                     <span className="register-submit__loader"></span>
+                   ) : (
+@@ -183,6 +215,86 @@ export const Register = ({ onRegister, onBack, onNavigate }: RegisterProps) => {
+           Войти
+         </button>
+       </div>
++
++      {isConsentOpen && (
++        <div
++          className="consent-modal"
++          role="dialog"
++          aria-modal="true"
++          aria-labelledby="consent-modal-title"
++          onClick={() => setIsConsentOpen(false)}
++        >
++          <div className="consent-modal__card" onClick={(e) => e.stopPropagation()}>
++            <button
++              className="consent-modal__close"
++              onClick={() => setIsConsentOpen(false)}
++              aria-label="Закрыть"
++            >
++              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
++                <line x1="18" y1="6" x2="6" y2="18" />
++                <line x1="6" y1="6" x2="18" y2="18" />
++              </svg>
++            </button>
++
++            <div className="consent-modal__header">
++              <span className="consent-modal__badge">152-ФЗ</span>
++              <h3 className="consent-modal__title" id="consent-modal-title">
++                Согласие на обработку персональных данных
++              </h3>
++              <p className="consent-modal__subtitle">
++                В соответствии с Федеральным законом № 152-ФЗ «О персональных данных»
++              </p>
++            </div>
++
++            <div className="consent-modal__body">
++              <p>
++                Регистрируясь в сервисе CAESAR, вы даёте оператору согласие на обработку
++                ваших персональных данных (имя пользователя и адрес электронной почты),
++                указанных при создании аккаунта.
++              </p>
++              <p>Обработка данных осуществляется в следующих целях:</p>
++              <ul>
++                <li>создание и идентификация вашей учётной записи;</li>
++                <li>обеспечение доступа к функциям сервиса и сохранение ваших проектов;</li>
++                <li>направление сервисных уведомлений, связанных с работой сервиса.</li>
++              </ul>
++              <p>
++                Под обработкой понимаются сбор, запись, систематизация, хранение,
++                уточнение, использование, блокирование, удаление и уничтожение
++                персональных данных. Обработка ведётся как автоматизированным,
++                так и неавтоматизированным способом.
++              </p>
++              <p>
++                Согласие действует с момента регистрации и до момента его отзыва.
++                Вы вправе в любой момент отозвать согласие, направив запрос оператору,
++                а также потребовать удаления своих данных. Оператор не передаёт ваши
++                данные третьим лицам, за исключением случаев, предусмотренных
++                законодательством Российской Федерации.
++              </p>
++              <p className="consent-modal__note">
++                Нажимая «Зарегистрироваться», вы подтверждаете, что ознакомились с
++                настоящим текстом, а ваше согласие является конкретным, информированным
++                и сознательным.
++              </p>
++            </div>
++
++            <div className="consent-modal__footer">
++              <button
++                className="consent-modal__btn consent-modal__btn--ghost"
++                onClick={() => setIsConsentOpen(false)}
++              >
++                Закрыть
++              </button>
++              <button
++                className="consent-modal__btn consent-modal__btn--accent"
++                onClick={() => { setConsent(true); setIsConsentOpen(false); setError(''); }}
++              >
++                Прочитал(а) и согласен(на)
++              </button>
++            </div>
++          </div>
++        </div>
++      )}
+     </div>
+   );
+ };
+\ No newline at end of file
+diff --git a/caesar.client/src/types/index.ts b/caesar.client/src/types/index.ts
+index 054ae80..4dd38a5 100644
+--- a/caesar.client/src/types/index.ts
++++ b/caesar.client/src/types/index.ts
+@@ -21,6 +21,8 @@ export interface User {
+   email: string;
+   role: 'admin' | 'page_admin' | 'developer' | 'tester' | 'viewer';
+   page_id: number | null;
++  createdAt?: string;
++  projectsCount?: number;
+ }
+ 
+ export const STATUS_ORDER: Record<TaskStatus, number> = {
+diff --git a/docker-compose.prod.yml b/docker-compose.prod.yml
+new file mode 100644
+index 0000000..87ef579
+--- /dev/null
++++ b/docker-compose.prod.yml
+@@ -0,0 +1,69 @@
++# ----------------------------------------------------------------------------
++# Прод-композиция для self-hosting (DigitalOcean droplet / VPS).
++# Все секреты читаются из окружения (.env рядом с этим файлом или из секретов CI).
++#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
++# Облачные PaaS (Render/Railway/Cloud Run) могут разворачивать сервисы по
++# отдельности из тех же Dockerfile'ов — этот файл удобен для единого хоста.
++# ----------------------------------------------------------------------------
++services:
++  db:
++    image: postgres:16
++    container_name: caesar_db
++    restart: unless-stopped
++    environment:
++      POSTGRES_USER: ${POSTGRES_USER}
++      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
++      POSTGRES_DB: ${POSTGRES_DB}
++    volumes:
++      - pgdata:/var/lib/postgresql/data
++    healthcheck:
++      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
++      interval: 10s
++      timeout: 5s
++      retries: 5
++    # Порт наружу не пробрасываем — БД доступна только внутри сети compose.
++
++  server:
++    build:
++      context: .
++      dockerfile: CAESAR.Server/Dockerfile
++    image: ${REGISTRY_IMAGE_SERVER:-caesar-server}:${IMAGE_TAG:-latest}
++    container_name: caesar_server
++    restart: unless-stopped
++    depends_on:
++      db:
++        condition: service_healthy
++    environment:
++      ASPNETCORE_ENVIRONMENT: Production
++      ASPNETCORE_HTTP_PORTS: "8080"
++      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
++      JwtSettings__Secret: ${JWT_SECRET}
++      JwtSettings__Issuer: ${JWT_ISSUER}
++      JwtSettings__Audience: ${JWT_AUDIENCE}
++      Telegram__BotSecret: ${TELEGRAM_BOT_SECRET}
++      # ForceHttpsRedirect: "true"   # включите, только если TLS терминирует сам контейнер
++    ports:
++      - "${SERVER_PORT:-8080}:8080"
++
++  bot:
++    build:
++      context: ./bot
++      dockerfile: Dockerfile
++    image: ${REGISTRY_IMAGE_BOT:-caesar-bot}:${IMAGE_TAG:-latest}
++    container_name: caesar_bot
++    restart: unless-stopped
++    depends_on:
++      - server
++    environment:
++      BOT_TOKEN: ${BOT_TOKEN}
++      CAESAR_API_BASE: ${CAESAR_API_BASE:-http://server:8080}
++      CAESAR_BOT_SECRET: ${TELEGRAM_BOT_SECRET}
++      OPENAI_API_KEY: ${OPENAI_API_KEY}
++      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
++      BOT_DB_PATH: /data/bot.db
++    volumes:
++      - botdata:/data
++
++volumes:
++  pgdata:
++  botdata:
+-- 
+2.43.0
+
