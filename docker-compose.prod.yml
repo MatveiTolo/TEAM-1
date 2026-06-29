@@ -52,12 +52,14 @@ services:
       dockerfile: Dockerfile
     image: ${REGISTRY_IMAGE_BOT:-caesar-bot}:${IMAGE_TAG:-latest}
     container_name: caesar_bot
+    network_mode: "host"
     restart: unless-stopped
     depends_on:
       - server
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
-      CAESAR_API_BASE: ${CAESAR_API_BASE:-http://server:8080}
+      #CAESAR_API_BASE: ${CAESAR_API_BASE:-http://server:8080}
+      CAESAR_API_BASE: http://localhost:5254
       CAESAR_BOT_SECRET: ${TELEGRAM_BOT_SECRET}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}

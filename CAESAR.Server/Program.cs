@@ -40,9 +40,10 @@ namespace CAESAR.Server
             {
                 options.AddPolicy("AllowAll", policy =>
                 {
-                    policy.AllowAnyOrigin()    // Разрешить запросы с любого сайта (включая твой фронт)
-                          .AllowAnyMethod()    // Разрешить любые методы (GET, POST, PUT, DELETE)
-                          .AllowAnyHeader();   // Разрешить любые заголовки (включая Authorization с JWT-токеном)
+                    policy.WithOrigins("http://localhost:8080") // ЖЕСТКО пишем адрес фронта из консоли браузера
+                          .AllowAnyMethod()
+                          .AllowAnyHeader()
+                          .AllowCredentials(); // Полная поддержка Axios с куками и токенами
                 });
             });
 
@@ -98,6 +99,7 @@ namespace CAESAR.Server
                 app.MapScalarApiReference();
 
                 //app.UseCors("ClientDev");
+                app.UseCors("AllowAll");
             }
 
             // HTTPS-редирект включаем только явным флагом (ForceHttpsRedirect=true).
@@ -107,7 +109,7 @@ namespace CAESAR.Server
             {
                 app.UseHttpsRedirection();
             }
-            app.UseCors("AllowAll");
+            //app.UseCors("AllowAll");
 
             app.UseAuthentication();
             app.UseAuthorization();
