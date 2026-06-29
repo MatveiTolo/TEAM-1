@@ -24,14 +24,25 @@ namespace CAESAR.Server
             builder.Services.AddOpenApi();
 
             // CORS для дев-окружения (Vite-клиент на localhost)
+            //builder.Services.AddCors(options =>
+            //{
+            //    options.AddPolicy("ClientDev", policy =>
+            //    {
+            //        policy.SetIsOriginAllowed(_ => true)
+            //              .AllowAnyOrigin()
+            //              .AllowAnyHeader()
+            //              .AllowAnyMethod()
+            //              .AllowCredentials();
+            //    });
+            //});
+
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("ClientDev", policy =>
+                options.AddPolicy("AllowAll", policy =>
                 {
-                    policy.SetIsOriginAllowed(_ => true)
-                          .AllowAnyHeader()
-                          .AllowAnyMethod()
-                          .AllowCredentials();
+                    policy.AllowAnyOrigin()    // Разрешить запросы с любого сайта (включая твой фронт)
+                          .AllowAnyMethod()    // Разрешить любые методы (GET, POST, PUT, DELETE)
+                          .AllowAnyHeader();   // Разрешить любые заголовки (включая Authorization с JWT-токеном)
                 });
             });
 
@@ -86,7 +97,7 @@ namespace CAESAR.Server
 
                 app.MapScalarApiReference();
 
-                app.UseCors("ClientDev");
+                //app.UseCors("ClientDev");
             }
 
             // HTTPS-редирект включаем только явным флагом (ForceHttpsRedirect=true).
@@ -96,6 +107,7 @@ namespace CAESAR.Server
             {
                 app.UseHttpsRedirection();
             }
+            app.UseCors("AllowAll");
 
             app.UseAuthentication();
             app.UseAuthorization();
