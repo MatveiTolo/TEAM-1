@@ -40,10 +40,10 @@ const normalizeTaskForCalendar = (raw: any): Task => {
 };
 
 interface CalendarProps {
-  pageId?: number;
+  projectId?: number | null;
 }
 
-export const Calendar = ({ pageId = 1 }: CalendarProps) => {
+export const Calendar = ({ projectId }: CalendarProps) => {
   const api = useApi();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,18 +51,24 @@ export const Calendar = ({ pageId = 1 }: CalendarProps) => {
   const [cursor, setCursor] = useState(() => new Date());
 
   useEffect(() => {
+    if (!projectId) {
+      setTasks([]);
+      setLoading(false);
+      setError('');
+      return;
+    }
     let active = true;
     setLoading(true);
-    
-    api.getTasksByPage(pageId)
-      .then((response: any) => { 
+
+    api.getTasksByProject(projectId)
+      .then((response: any) => {
         if (active) {
           const normalizedTasks = (response.data || []).map(normalizeTaskForCalendar);
           setTasks(normalizedTasks);
           setError('');
         }
       })
-      .catch((e: any) => { 
+      .catch((e: any) => {
         if (active) {
           setError(e.message || 'Не удалось загрузить задачи');
           setTasks([]);
@@ -71,9 +77,9 @@ export const Calendar = ({ pageId = 1 }: CalendarProps) => {
       .finally(() => {
         if (active) setLoading(false);
       });
-      
+
     return () => { active = false; };
-  }, [api, pageId]);
+  }, [api, projectId]);
 
   // Группируем задачи по дню дедлайна
   const byDay = useMemo(() => {
@@ -125,7 +131,8 @@ export const Calendar = ({ pageId = 1 }: CalendarProps) => {
         </div>
       </div>
 
-      {loading && <div className="cal-loading">Загрузка задач...</div>}
+      {!projectId && <div className="cal-loading">Проект не выбран</div>}
+      {projectId && loading && <div className="cal-loading">Загрузка задач...</div>}
       {error && <div className="cal-error">{error}</div>}
 
       {!loading && !error && (

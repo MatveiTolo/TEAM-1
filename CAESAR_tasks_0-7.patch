@@ -1,0 +1,2997 @@
+diff --git a/CAESAR.Server/Controllers/AiController.cs b/CAESAR.Server/Controllers/AiController.cs
+new file mode 100644
+index 0000000..8634d03
+--- /dev/null
++++ b/CAESAR.Server/Controllers/AiController.cs
+@@ -0,0 +1,124 @@
++using System.Security.Claims;
++using System.Text;
++using System.Text.Json;
++using CAESAR.Server.Data;
++using CAESAR.Server.DTOs;
++using CAESAR.Server.Models;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++
++namespace CAESAR.Server.Controllers
++{
++    // Документированный эндпоинт ИИ-ассистента: POST /api/ai/chat  (раздел 9.4.3).
++    // Body: { message }. Пользователь берётся из JWT (user_id из тела небезопасен).
++    // Если задан ключ OpenAI:ApiKey — отвечает GPT по контексту, иначе — детерминированный
++    // разбор по данным пользователя (типы запросов из Таблицы 32).
++    [ApiController]
++    [Route("api/ai")]
++    [Authorize]
++    public sealed class AiController : ControllerBase
++    {
++        private readonly AppDbContext _db;
++        private readonly IConfiguration _cfg;
++        private readonly IHttpClientFactory _http;
++
++        public AiController(AppDbContext db, IConfiguration cfg, IHttpClientFactory http)
++        {
++            _db = db; _cfg = cfg; _http = http;
++        }
++
++        [HttpPost("chat")]
++        public async Task<ActionResult<AiChatResponseDto>> Chat(AiChatRequestDto dto, CancellationToken ct)
++        {
++            var sub = User.FindFirstValue(ClaimTypes.NameIdentifier);
++            if (!int.TryParse(sub, out var userId)) return Unauthorized();
++            if (string.IsNullOrWhiteSpace(dto.Message)) return BadRequest("Пустой запрос.");
++
++            // Задачи пользователя (создатель или исполнитель) по всем его проектам.
++            var pageIds = await _db.Members
++                .Where(m => m.UserId == userId)
++                .Join(_db.ProjectPages, m => m.ProjectId, p => p.ProjectId, (m, p) => p.Id)
++                .Distinct().ToListAsync(ct);
++
++            var tasks = await _db.BoardTasks
++                .Where(t => pageIds.Contains(t.ProjectPageId) && (t.CreatedById == userId || t.AssignedToId == userId))
++                .Select(t => new { t.Id, t.Title, t.Status, t.Deadline })
++                .ToListAsync(ct);
++
++            var apiKey = _cfg["OpenAI:ApiKey"];
++            if (!string.IsNullOrWhiteSpace(apiKey))
++            {
++                try
++                {
++                    var text = await AskOpenAiAsync(apiKey!, dto.Message, tasks, ct);
++                    if (!string.IsNullOrWhiteSpace(text)) return Ok(new AiChatResponseDto { Text = text });
++                }
++                catch (Exception ex)
++                {
++                    Console.WriteLine($"OpenAI недоступен, fallback: {ex.Message}");
++                }
++            }
++
++            return Ok(new AiChatResponseDto { Text = RuleBasedAnswer(dto.Message, tasks.Select(t => (t.Id, t.Title, t.Status, t.Deadline))) });
++        }
++
++        private static string RuleBasedAnswer(string q, IEnumerable<(int Id, string Title, BoardTaskStatus Status, DateTime? Deadline)> tasks, DateTime? nowUtc = null)
++        {
++            var now = (nowUtc ?? DateTime.UtcNow).Date;
++            var list = tasks.ToList();
++            string ql = q.ToLowerInvariant();
++
++            var overdue = list.Where(t => t.Deadline is { } d && d.Date < now && t.Status != BoardTaskStatus.Done).ToList();
++            var inWork = list.Where(t => t.Status is BoardTaskStatus.Execution or BoardTaskStatus.Testing).ToList();
++            var waiting = list.Where(t => t.Status == BoardTaskStatus.Preparaion).ToList();
++
++            if (ql.Contains("просроч"))
++                return overdue.Count == 0 ? "Просроченных задач нет." :
++                    $"Просрочено задач: {overdue.Count}. " + string.Join("; ", overdue.Select(t => $"#{t.Id} \"{t.Title}\""));
++
++            if (ql.Contains("сколько") && ql.Contains("задач"))
++                return $"В работе: {inWork.Count}, в ожидании: {waiting.Count}, просрочено: {overdue.Count}. Всего у вас: {list.Count}.";
++
++            if (ql.Contains("сегодня") || ql.Contains("делать") || ql.Contains("фокус") || ql.Contains("приоритет"))
++            {
++                var priority = list.Where(t => t.Status != BoardTaskStatus.Done && t.Deadline != null)
++                    .OrderBy(t => t.Deadline).Take(3).ToList();
++                if (priority.Count == 0) return "Задач с дедлайнами нет — начните с любой из колонки «Выполнение».";
++                return "Рекомендую в порядке приоритета: " +
++                    string.Join("; ", priority.Select(t => $"#{t.Id} \"{t.Title}\" (дедлайн {t.Deadline:dd.MM.yyyy})"));
++            }
++
++            return $"У вас {list.Count} задач: в работе {inWork.Count}, в ожидании {waiting.Count}, просрочено {overdue.Count}. " +
++                   "Спросите: «сколько у меня задач?», «сколько просрочено?», «что мне делать сегодня?».";
++        }
++
++        private async Task<string> AskOpenAiAsync(string apiKey, string question,
++            IEnumerable<object> tasks, CancellationToken ct)
++        {
++            var model = _cfg["OpenAI:Model"] ?? "gpt-4o";
++            var contextJson = JsonSerializer.Serialize(tasks);
++            var body = new
++            {
++                model,
++                temperature = 0.2,
++                messages = new object[]
++                {
++                    new { role = "system", content = "Ты ассистент канбан-доски CAESAR. Отвечай кратко, на русском, только по данным JSON. Даты в UTC. Статусы: Preparaion/Execution/Testing/Done." },
++                    new { role = "user", content = $"Текущее время UTC: {DateTime.UtcNow:o}\nЗАДАЧИ:\n{contextJson}\n\nВОПРОС:\n{question}" }
++                }
++            };
++
++            var client = _http.CreateClient();
++            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
++            req.Headers.Add("Authorization", $"Bearer {apiKey}");
++            req.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
++
++            using var resp = await client.SendAsync(req, ct);
++            resp.EnsureSuccessStatusCode();
++            using var stream = await resp.Content.ReadAsStreamAsync(ct);
++            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
++            return doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString()?.Trim() ?? "";
++        }
++    }
++}
+diff --git a/CAESAR.Server/Controllers/AuthController.cs b/CAESAR.Server/Controllers/AuthController.cs
+index 7372d11..ae52b23 100644
+--- a/CAESAR.Server/Controllers/AuthController.cs
++++ b/CAESAR.Server/Controllers/AuthController.cs
+@@ -67,6 +67,8 @@ namespace CAESAR.Server.Controllers
+ 
+             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+             if (user == null) return BadRequest("Неверная почта или пароль");
++
++            if (user.IsBlocked) return StatusCode(403, "Аккаунт заблокирован. Обратитесь к администратору.");
+             
+             var passwordHasher = new PasswordHasher<User>();
+             var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
+diff --git a/CAESAR.Server/Controllers/MembersController.cs b/CAESAR.Server/Controllers/MembersController.cs
+new file mode 100644
+index 0000000..d6142b8
+--- /dev/null
++++ b/CAESAR.Server/Controllers/MembersController.cs
+@@ -0,0 +1,149 @@
++using System.Security.Claims;
++using CAESAR.Server.Data;
++using CAESAR.Server.DTOs;
++using CAESAR.Server.Models;
++using CAESAR.Server.Services;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.EntityFrameworkCore;
++
++namespace CAESAR.Server.Controllers
++{
++    // Управление участниками проекта и их ролями (Задача 6).
++    // Роли распределяются по конкретным проектам через таблицу Members.
++    [ApiController]
++    [Route("api/projects/{projectId:int}/members")]
++    [Authorize]
++    public sealed class MembersController : ControllerBase
++    {
++        private readonly AppDbContext _db;
++        public MembersController(AppDbContext db) => _db = db;
++
++        private int CurrentUserId()
++        {
++            var sub = User.FindFirstValue(ClaimTypes.NameIdentifier);
++            return int.TryParse(sub, out var id) ? id : 0;
++        }
++
++        // Список участников проекта (доступен любому участнику проекта)
++        [HttpGet]
++        public async Task<IActionResult> GetMembers(int projectId)
++        {
++            int me = CurrentUserId();
++            if (me == 0) return Unauthorized();
++
++            var isMember = await _db.Members.AnyAsync(m => m.ProjectId == projectId && m.UserId == me);
++            if (!isMember) return Forbid();
++
++            var members = await _db.Members
++                .Where(m => m.ProjectId == projectId)
++                .Select(m => new
++                {
++                    m.UserId,
++                    Username = m.User!.UserName,
++                    Email = m.User!.Email,
++                    RoleId = m.Role,
++                    RoleName = ((UserRole)m.Role).ToString(),
++                    m.AllowedPageId
++                })
++                .ToListAsync();
++
++            return Ok(members);
++        }
++
++        // Добавить участника по email
++        [HttpPost]
++        public async Task<IActionResult> AddMember(int projectId, AddMemberDto dto)
++        {
++            int me = CurrentUserId();
++            if (me == 0) return Unauthorized();
++
++            var actor = await _db.Members.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == me);
++            if (actor == null || !ProjectPermissions.CanManageMembers(actor))
++                return StatusCode(403, "Недостаточно прав для управления участниками.");
++
++            if (dto.RoleId is < 1 or > 5) return BadRequest("Недопустимая роль.");
++            // PageAdmin не может назначать GlobalAdmin
++            if (ProjectPermissions.RoleOf(actor) == UserRole.PageAdmin && dto.RoleId == (int)UserRole.GlobalAdmin)
++                return StatusCode(403, "Администратор страницы не может назначать главного администратора.");
++
++            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
++            if (user == null) return NotFound("Пользователь с таким email не зарегистрирован.");
++
++            var exists = await _db.Members.AnyAsync(m => m.ProjectId == projectId && m.UserId == user.Id);
++            if (exists) return BadRequest("Пользователь уже участник проекта.");
++
++            var member = new Member
++            {
++                ProjectId = projectId,
++                UserId = user.Id,
++                Role = dto.RoleId,
++                AllowedPageId = dto.AllowedPageId
++            };
++            _db.Members.Add(member);
++            await _db.SaveChangesAsync();
++
++            return Ok(new { member.UserId, RoleId = member.Role, RoleName = ((UserRole)member.Role).ToString(), member.AllowedPageId });
++        }
++
++        // Сменить роль/страницу участника
++        [HttpPatch("{userId:int}")]
++        public async Task<IActionResult> UpdateMember(int projectId, int userId, UpdateMemberDto dto)
++        {
++            int me = CurrentUserId();
++            if (me == 0) return Unauthorized();
++
++            var actor = await _db.Members.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == me);
++            if (actor == null || !ProjectPermissions.CanManageMembers(actor))
++                return StatusCode(403, "Недостаточно прав для управления участниками.");
++
++            var target = await _db.Members.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == userId);
++            if (target == null) return NotFound("Участник не найден.");
++
++            // Нельзя понизить последнего GlobalAdmin
++            if (ProjectPermissions.RoleOf(target) == UserRole.GlobalAdmin && dto.RoleId is int newRole && newRole != (int)UserRole.GlobalAdmin)
++            {
++                var admins = await _db.Members.CountAsync(m => m.ProjectId == projectId && m.Role == (int)UserRole.GlobalAdmin);
++                if (admins <= 1) return BadRequest("Нельзя снять роль у единственного главного администратора.");
++            }
++
++            if (dto.RoleId is int r)
++            {
++                if (r is < 1 or > 5) return BadRequest("Недопустимая роль.");
++                if (ProjectPermissions.RoleOf(actor) == UserRole.PageAdmin && r == (int)UserRole.GlobalAdmin)
++                    return StatusCode(403, "Администратор страницы не может назначать главного администратора.");
++                target.Role = r;
++            }
++            if (dto.AllowedPageId.HasValue)
++                target.AllowedPageId = dto.AllowedPageId.Value == 0 ? null : dto.AllowedPageId.Value;
++
++            await _db.SaveChangesAsync();
++            return Ok(new { target.UserId, RoleId = target.Role, RoleName = ((UserRole)target.Role).ToString(), target.AllowedPageId });
++        }
++
++        // Удалить участника из проекта
++        [HttpDelete("{userId:int}")]
++        public async Task<IActionResult> RemoveMember(int projectId, int userId)
++        {
++            int me = CurrentUserId();
++            if (me == 0) return Unauthorized();
++
++            var actor = await _db.Members.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == me);
++            if (actor == null || !ProjectPermissions.CanManageMembers(actor))
++                return StatusCode(403, "Недостаточно прав для управления участниками.");
++
++            var target = await _db.Members.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == userId);
++            if (target == null) return NotFound("Участник не найден.");
++
++            if (ProjectPermissions.RoleOf(target) == UserRole.GlobalAdmin)
++            {
++                var admins = await _db.Members.CountAsync(m => m.ProjectId == projectId && m.Role == (int)UserRole.GlobalAdmin);
++                if (admins <= 1) return BadRequest("Нельзя удалить единственного главного администратора.");
++            }
++
++            _db.Members.Remove(target);
++            await _db.SaveChangesAsync();
++            return Ok(new { message = "Участник удалён из проекта." });
++        }
++    }
++}
+diff --git a/CAESAR.Server/Controllers/ProjectPagesController.cs b/CAESAR.Server/Controllers/ProjectPagesController.cs
+index 2b9f87f..b19739e 100644
+--- a/CAESAR.Server/Controllers/ProjectPagesController.cs
++++ b/CAESAR.Server/Controllers/ProjectPagesController.cs
+@@ -32,7 +32,8 @@ namespace CAESAR.Server.Controllers
+             var member = await _context.Members
+                 .FirstOrDefaultAsync(m => m.ProjectId == dto.ProjectId && m.UserId == currentUserId);
+ 
+-            if (member == null || (member.Role != (int)UserRole.GlobalAdmin && member.Role != (int)UserRole.PageAdmin)) return StatusCode(403, "bruh");//Forbid();
++            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта.");
++            if (!Services.ProjectPermissions.CanCreatePage(member)) return StatusCode(403, "Только администратор может создавать доски.");
+ 
+             var newPage = new ProjectPage
+             {
+diff --git a/CAESAR.Server/Controllers/RolesController.cs b/CAESAR.Server/Controllers/RolesController.cs
+new file mode 100644
+index 0000000..9ff4166
+--- /dev/null
++++ b/CAESAR.Server/Controllers/RolesController.cs
+@@ -0,0 +1,27 @@
++using CAESAR.Server.Models;
++using Microsoft.AspNetCore.Authorization;
++using Microsoft.AspNetCore.Mvc;
++
++namespace CAESAR.Server.Controllers
++{
++    // Справочная таблица ролей (roles) из документации — для выпадающих списков на клиенте.
++    [ApiController]
++    [Route("api/roles")]
++    [Authorize]
++    public sealed class RolesController : ControllerBase
++    {
++        [HttpGet]
++        public IActionResult GetRoles()
++        {
++            var roles = new[]
++            {
++                new { id = (int)UserRole.GlobalAdmin, name = "GlobalAdmin",  title = "Главный администратор" },
++                new { id = (int)UserRole.PageAdmin,   name = "PageAdmin",    title = "Администратор страницы" },
++                new { id = (int)UserRole.Developer,   name = "Developer",    title = "Разработчик" },
++                new { id = (int)UserRole.Tester,      name = "Tester",       title = "Тестировщик" },
++                new { id = (int)UserRole.Viewer,      name = "Viewer",       title = "Наблюдатель" },
++            };
++            return Ok(roles);
++        }
++    }
++}
+diff --git a/CAESAR.Server/Controllers/TasksController.cs b/CAESAR.Server/Controllers/TasksController.cs
+index 73da4b1..38af2c7 100644
+--- a/CAESAR.Server/Controllers/TasksController.cs
++++ b/CAESAR.Server/Controllers/TasksController.cs
+@@ -1,4 +1,4 @@
+-﻿using System.Security.Claims;
++using System.Security.Claims;
+ using Microsoft.AspNetCore.Authorization;
+ using CAESAR.Server.Services;
+ using CAESAR.Server.Data;
+@@ -23,21 +23,25 @@ namespace CAESAR.Server.Controllers
+             _notificationService = notificationService;
+         }
+ 
++        private int CurrentUserId()
++        {
++            var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
++            return int.TryParse(sub, out var id) ? id : 0;
++        }
++
++        // Задачи одной страницы (доски)
+         [HttpGet("page/{pageId}")]
+         public async Task<IActionResult> GetTasksByPage(int pageId)
+         {
+-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+-
+-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+-            int currentUserId = int.Parse(userIdClaim);
++            int currentUserId = CurrentUserId();
++            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+ 
+             var page = await _context.ProjectPages.FindAsync(pageId);
+-
+             if (page == null) return NotFound("Запрашиваемая страница не найдена");
+ 
+-            var isMember = await _context.Members.AnyAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+-
+-            if (!isMember) return Forbid();
++            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
++            if (member == null) return Forbid();
++            if (!ProjectPermissions.CanAccessPage(member, pageId)) return StatusCode(403, "Нет доступа к этой странице.");
+ 
+             var tasks = await _context.BoardTasks
+                 .Where(t => t.ProjectPageId == pageId)
+@@ -47,31 +51,53 @@ namespace CAESAR.Server.Controllers
+             return Ok(tasks);
+         }
+ 
++        // Задача 4: все задачи проекта (по всем его страницам) — для календаря и отчётов.
++        // Раньше эти экраны грузили только страницу №1, из-за чего инфо проекта «пропадала».
++        [HttpGet("project/{projectId}")]
++        public async Task<IActionResult> GetTasksByProject(int projectId)
++        {
++            int currentUserId = CurrentUserId();
++            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
++
++            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == currentUserId);
++            if (member == null) return Forbid();
++
++            var pageIdsQuery = _context.ProjectPages.Where(p => p.ProjectId == projectId);
++
++            // Участник с ограничением по странице видит только её.
++            if (ProjectPermissions.RoleOf(member) != UserRole.GlobalAdmin && member.AllowedPageId is int allowed)
++                pageIdsQuery = pageIdsQuery.Where(p => p.Id == allowed);
++
++            var pageIds = await pageIdsQuery.Select(p => p.Id).ToListAsync();
++
++            var tasks = await _context.BoardTasks
++                .Where(t => pageIds.Contains(t.ProjectPageId))
++                .OrderBy(t => t.ProjectPageId).ThenBy(t => t.Position)
++                .ToListAsync();
++
++            return Ok(tasks);
++        }
++
+         [HttpPost]
+         public async Task<IActionResult> CreateTask(CreateTaskDto dto)
+         {
+-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+-
+-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+-            int currentUserId = int.Parse(userIdClaim);
++            int currentUserId = CurrentUserId();
++            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+ 
+             if (string.IsNullOrEmpty(dto.Title)) return BadRequest("Название задачи не может быть пустым");
+ 
+             var page = await _context.ProjectPages.FindAsync(dto.ProjectPageId);
+-
+             if (page == null) return NotFound("Запрашиваемая страница не найдена");
+ 
+-            var Member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+-
+-            if (Member == null) return StatusCode(403, "Bruh");//Forbid();
++            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
++            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта.");
++            if (!ProjectPermissions.CanAccessPage(member, dto.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
++            if (!ProjectPermissions.CanCreateTask(member)) return StatusCode(403, "Ваша роль не позволяет создавать задачи.");
+ 
+-            if (Member.Role == 3 || Member.Role == 5) return BadRequest("У вас нет прав для создания задачи на этой странице"); //Forbid();
+-
+-            /// Сдвиг задач
++            // Сдвигаем существующие задачи в колонке «Преподготовка» вниз — новая встаёт наверх.
+             var existingTasks = await _context.BoardTasks
+-                .Where(t => t.ProjectPageId == dto.ProjectPageId && (int)t.Status == 1)
++                .Where(t => t.ProjectPageId == dto.ProjectPageId && t.Status == BoardTaskStatus.Preparaion)
+                 .ToListAsync();
+-
+             foreach (var task in existingTasks) task.Position += 1;
+ 
+             var newTask = new BoardTask
+@@ -80,6 +106,7 @@ namespace CAESAR.Server.Controllers
+                 Title = dto.Title,
+                 Description = dto.Description,
+                 Status = BoardTaskStatus.Preparaion,
++                Position = 0,
+                 Deadline = dto.Deadline,
+                 CreatedById = currentUserId
+             };
+@@ -87,54 +114,47 @@ namespace CAESAR.Server.Controllers
+             _context.BoardTasks.Add(newTask);
+             await _context.SaveChangesAsync();
+ 
++            _context.TaskHistories.Add(new BoardTaskHistory
++            {
++                TaskId = newTask.Id,
++                UserId = currentUserId,
++                ActionType = "Создана",
++                StatusBefore = BoardTaskStatus.Preparaion,
++                StatusAfter = BoardTaskStatus.Preparaion,
++                Details = "Задача создана.",
++                CreatedAt = DateTime.UtcNow
++            });
++            await _context.SaveChangesAsync();
++
+             return Ok(newTask);
+         }
+ 
+         [HttpPut("{id}/move")]
+         public async Task<IActionResult> MoveTask(int id, MoveTaskDto dto)
+         {
+-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+-
+-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+-            int currentUserId = int.Parse(userIdClaim);
++            int currentUserId = CurrentUserId();
++            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+ 
+             var task = await _context.BoardTasks.FindAsync(id);
+-
+             if (task == null) return NotFound("Запрашиваемая задача не найдена");
+ 
+             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+-
+             if (page == null) return NotFound("Запрашиваемая страница не найдена");
+ 
+-            var Member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
++            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
++            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта.");
++            if (!ProjectPermissions.CanAccessPage(member, task.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
+ 
+-            if (Member == null) return StatusCode(403, "Bruh");//Forbid();
+-
+-            // Валидвция требований
+-
+-            int statusDiff = Math.Abs((int)dto.targetTaskStatus - (int)task.Status);
+-
+-            if (statusDiff != 1 && task.Status != dto.targetTaskStatus) return BadRequest("Невозможно переместить задачу в указанный статус");
+-
+-            if (Member.Role == 4)
+-            {
+-                if (dto.targetTaskStatus == BoardTaskStatus.Done)
+-                {
+-                    return BadRequest("У вас нет прав для перемещения задачи в статус 'Выполнено'");
+-                }
+-                if (task.Status == BoardTaskStatus.Preparaion && dto.targetTaskStatus == BoardTaskStatus.Execution)
+-                {
+-                    return BadRequest("У вас нет прав для перемещения задачи");
+-                }
+-            }
++            // Единая валидация перемещения (соседство + правила роли).
++            var moveError = ProjectPermissions.ValidateMove(member, task.Status, dto.targetTaskStatus);
++            if (moveError != null) return BadRequest(moveError);
+ 
+             int oldPos = task.Position;
+             var oldStatus = task.Status;
+ 
+             if (task.Status != dto.targetTaskStatus)
+             {
+-                // Перемещение задачи в другой статус
+-
++                // Перемещение в другую колонку: закрываем «дыру» в старой, раздвигаем целевую.
+                 var tasksToMoveUp = await _context.BoardTasks
+                     .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > oldPos)
+                     .ToListAsync();
+@@ -146,36 +166,32 @@ namespace CAESAR.Server.Controllers
+                 foreach (var t in tasksToMoveDown) t.Position++;
+ 
+                 task.Status = dto.targetTaskStatus;
+-
+             }
+             else
+             {
+-                // Перемещение задачи в пределах одного статуса
+-
++                // Реордер внутри одной колонки (Задача 2).
+                 if (oldPos < dto.NewPosition)
+                 {
+-                    var tasksBetween = await _context.BoardTasks
++                    var between = await _context.BoardTasks
+                         .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > oldPos && t.Position <= dto.NewPosition)
+                         .ToListAsync();
+-                    foreach (var t in tasksBetween) t.Position--;
++                    foreach (var t in between) t.Position--;
+                 }
+                 else
+                 {
+-                    var tasksBetween = await _context.BoardTasks
++                    var between = await _context.BoardTasks
+                         .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position < oldPos && t.Position >= dto.NewPosition)
+                         .ToListAsync();
+-                    foreach (var t in tasksBetween) t.Position++;
++                    foreach (var t in between) t.Position++;
+                 }
+             }
+ 
+             task.Position = dto.NewPosition;
+             task.UpdatedAt = DateTime.UtcNow;
+ 
+-            // Запись истории изменений
+-
+             if (oldPos != dto.NewPosition || oldStatus != dto.targetTaskStatus)
+             {
+-                var history = new BoardTaskHistory
++                _context.TaskHistories.Add(new BoardTaskHistory
+                 {
+                     TaskId = task.Id,
+                     UserId = currentUserId,
+@@ -186,16 +202,13 @@ namespace CAESAR.Server.Controllers
+                         ? $"Перенесена из колонки '{GetStatusName(oldStatus)}' в '{GetStatusName(dto.targetTaskStatus)}' на позицию {dto.NewPosition}."
+                         : $"Перемещена внутри колонки '{GetStatusName(task.Status)}' с позиции {oldPos} на {dto.NewPosition}.",
+                     CreatedAt = DateTime.UtcNow
+-                };
+-
+-                _context.TaskHistories.Add(history);
++                });
+             }
+ 
+             await _context.SaveChangesAsync();
+ 
+             if (oldStatus != dto.targetTaskStatus)
+             {
+-                // Запускаем отправку в фоновом потоке, чтобы не тормозить ответ пользователю на доске
+                 _ = Task.Run(async () =>
+                 {
+                     try
+@@ -204,9 +217,6 @@ namespace CAESAR.Server.Controllers
+                                              $"Задача #{task.Id} \"{task.Title}\" изменила статус!\n" +
+                                              $"Новый статус: *{GetStatusName(dto.targetTaskStatus)}*.\n" +
+                                              $"Пожалуйста, проверьте изменения на доске.";
+-
+-                        // Вызываем наш оркестрирующий сервис. Он сам найдет мессенджеры автора задачи (task.CreatedById)
+-                        // и через Фабрику сделает рассылку во все подключенные каналы связи параллельно.
+                         await _notificationService.SendToUserAsync(task.CreatedById, messageText);
+                     }
+                     catch (Exception ex)
+@@ -222,10 +232,8 @@ namespace CAESAR.Server.Controllers
+         [HttpPatch("{id}")]
+         public async Task<IActionResult> UpdateTask(int id, UpdateTaskDto dto)
+         {
+-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+-
+-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+-            int currentUserId = int.Parse(userIdClaim);
++            int currentUserId = CurrentUserId();
++            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+ 
+             var task = await _context.BoardTasks.FindAsync(id);
+             if (task == null) return NotFound("Запрашиваемая задача не найдена");
+@@ -233,11 +241,10 @@ namespace CAESAR.Server.Controllers
+             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+             if (page == null) return NotFound("Запрашиваемая страница не найдена");
+ 
+-            var member = await _context.Members
+-                .FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+-
++            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+             if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
+-            if (member.Role == (int)UserRole.Viewer) return StatusCode(403, "Наблюдатели не могут редактировать задачи");
++            if (!ProjectPermissions.CanAccessPage(member, task.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
++            if (!ProjectPermissions.CanEditTask(member)) return StatusCode(403, "Наблюдатели не могут редактировать задачи");
+ 
+             var changes = new List<string>();
+ 
+@@ -246,34 +253,26 @@ namespace CAESAR.Server.Controllers
+                 changes.Add($"название → '{dto.Title}'");
+                 task.Title = dto.Title;
+             }
+-
+             if (dto.Description != null && dto.Description != task.Description)
+             {
+                 changes.Add("обновлено описание");
+                 task.Description = dto.Description;
+             }
+-
+             if (dto.Deadline != task.Deadline)
+             {
+-                changes.Add(dto.Deadline.HasValue
+-                    ? $"дедлайн → {dto.Deadline.Value:dd.MM.yyyy}"
+-                    : "дедлайн снят");
++                changes.Add(dto.Deadline.HasValue ? $"дедлайн → {dto.Deadline.Value:dd.MM.yyyy}" : "дедлайн снят");
+                 task.Deadline = dto.Deadline;
+             }
+-
+             if (dto.AssignedToId != task.AssignedToId)
+             {
+-                changes.Add(dto.AssignedToId.HasValue
+-                    ? $"назначен исполнитель #{dto.AssignedToId}"
+-                    : "исполнитель снят");
++                changes.Add(dto.AssignedToId.HasValue ? $"назначен исполнитель #{dto.AssignedToId}" : "исполнитель снят");
+                 task.AssignedToId = dto.AssignedToId;
+             }
+ 
+             if (changes.Count == 0) return Ok(task);
+ 
+             task.UpdatedAt = DateTime.UtcNow;
+-
+-            var history = new BoardTaskHistory
++            _context.TaskHistories.Add(new BoardTaskHistory
+             {
+                 TaskId = task.Id,
+                 UserId = currentUserId,
+@@ -282,11 +281,9 @@ namespace CAESAR.Server.Controllers
+                 StatusAfter = task.Status,
+                 Details = "Задача отредактирована: " + string.Join(", ", changes) + ".",
+                 CreatedAt = DateTime.UtcNow
+-            };
+-            _context.TaskHistories.Add(history);
++            });
+ 
+             await _context.SaveChangesAsync();
+-
+             return Ok(task);
+         }
+ 
+@@ -318,10 +315,8 @@ namespace CAESAR.Server.Controllers
+         [HttpPost("{id}/comments")]
+         public async Task<IActionResult> AddComment(int id, CreateCommentDto dto)
+         {
+-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+-
+-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
+-            int currentUserId = int.Parse(userIdClaim);
++            int currentUserId = CurrentUserId();
++            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+ 
+             if (string.IsNullOrWhiteSpace(dto.Text)) return BadRequest("Текст комментария не может быть пустым");
+ 
+@@ -329,11 +324,10 @@ namespace CAESAR.Server.Controllers
+             if (task == null) return NotFound("Задача не найдена");
+ 
+             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+-            var member = await _context.Members
+-                .FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
++            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
+ 
+             if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
+-            if (member.Role == (int)UserRole.Viewer) return StatusCode(403, "Наблюдатели не могут оставлять комментарии");
++            if (!ProjectPermissions.CanComment(member)) return StatusCode(403, "Наблюдатели не могут оставлять комментарии");
+ 
+             var nextComment = new Comment
+             {
+@@ -344,22 +338,20 @@ namespace CAESAR.Server.Controllers
+             };
+             _context.Comments.Add(nextComment);
+ 
+-            var history = new BoardTaskHistory
++            _context.TaskHistories.Add(new BoardTaskHistory
+             {
+                 TaskId = task.Id,
+                 UserId = currentUserId,
+                 ActionType = "Комментарий",
+-                StatusBefore = task.Status, // Статус не менялся пишем текущий
++                StatusBefore = task.Status,
+                 StatusAfter = task.Status,
+                 Details = "Добавлен новый комментарий к задаче.",
+                 CreatedAt = DateTime.UtcNow
+-            };
+-            _context.TaskHistories.Add(history);
++            });
+ 
+             await _context.SaveChangesAsync();
+ 
+             var user = await _context.Users.FindAsync(currentUserId);
+-
+             var responeDto = new CommentDto
+             {
+                 Id = nextComment.Id,
+@@ -376,15 +368,12 @@ namespace CAESAR.Server.Controllers
+         public async Task<IActionResult> GetTaskComments(int id)
+         {
+             var taskExists = await _context.BoardTasks.AnyAsync(t => t.Id == id);
+-            if (!taskExists)
+-            {
+-                return NotFound("Задача не найдена.");
+-            }
++            if (!taskExists) return NotFound("Задача не найдена.");
+ 
+             var comments = await _context.Comments
+                 .Include(c => c.User)
+                 .Where(c => c.TaskId == id)
+-                .OrderBy(c => c.CreatedAt) // Старые комментарии показываем сверху | новые внизу (как в чате)
++                .OrderBy(c => c.CreatedAt)
+                 .Select(c => new CommentDto
+                 {
+                     Id = c.Id,
+@@ -401,44 +390,37 @@ namespace CAESAR.Server.Controllers
+         [HttpDelete("{id}")]
+         public async Task<IActionResult> DeleteBoardTask(int id)
+         {
+-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+-            int currentUserId = int.Parse(userIdClaim!);
++            int currentUserId = CurrentUserId();
++            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+ 
+             var task = await _context.BoardTasks.FindAsync(id);
+             if (task == null) return NotFound("Задача не найдена");
+ 
+             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+-            var memeber = await _context.Members
+-                .FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
++            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
+ 
+-            if (memeber == null) return NotFound("Пользователь не найден");
+-            if (memeber.Role == (int)UserRole.Developer || memeber.Role == (int)UserRole.Tester || memeber.Role == (int)UserRole.Viewer) return Forbid("Ваша роль не позволяет этого сделать");
++            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
++            if (!ProjectPermissions.CanAccessPage(member, task.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
++            if (!ProjectPermissions.CanDeleteTask(member)) return StatusCode(403, "Ваша роль не позволяет удалять задачи.");
+ 
+             var tasksToMoveUp = await _context.BoardTasks
+-                .Where(t => t.ProjectPageId == task.ProjectPageId
+-                && t.Status == task.Status
+-                && t.Position > task.Position).ToListAsync();
+-
++                .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > task.Position)
++                .ToListAsync();
+             foreach (var t in tasksToMoveUp) t.Position--;
+ 
+             _context.BoardTasks.Remove(task);
+             await _context.SaveChangesAsync();
+ 
+-            return Ok(new {Meesage = $"Задача {id} успешно удалена из системы"});
++            return Ok(new { message = $"Задача {id} успешно удалена из системы" });
+         }
+ 
+-
+-        // Может привести к утечке памяти? уточнить.
+-        private static string GetStatusName(BoardTaskStatus status)
++        private static string GetStatusName(BoardTaskStatus status) => status switch
+         {
+-            return status switch
+-            {
+-                BoardTaskStatus.Preparaion => "Преподготовка",
+-                BoardTaskStatus.Execution => "Выполнение",
+-                BoardTaskStatus.Testing => "Тестирование",
+-                BoardTaskStatus.Done => "Готово",
+-                _ => "Неизвестно"
+-            };
+-        }
++            BoardTaskStatus.Preparaion => "Преподготовка",
++            BoardTaskStatus.Execution => "Выполнение",
++            BoardTaskStatus.Testing => "Тестирование",
++            BoardTaskStatus.Done => "Готово",
++            _ => "Неизвестно"
++        };
+     }
+ }
+diff --git a/CAESAR.Server/Controllers/UsersController.cs b/CAESAR.Server/Controllers/UsersController.cs
+index 20c1a72..7e1a974 100644
+--- a/CAESAR.Server/Controllers/UsersController.cs
++++ b/CAESAR.Server/Controllers/UsersController.cs
+@@ -65,13 +65,25 @@ namespace CAESAR.Server.Controllers
+                 {
+                     Id = u.Id,
+                     Username = u.UserName,
+-                    Email = u.Email
++                    Email = u.Email,
++                    IsSuperAdmin = u.IsSuperAdmin,
++                    Status = u.IsBlocked ? "blocked" : "active",
++                    ProjectCount = _context.Members.Count(m => m.UserId == u.Id)
+                 })
+                 .ToListAsync();
+ 
+             return Ok(users);
+         }
+ 
++        // Является ли текущий вызывающий супер-админом системы (для админ-панели).
++        private async Task<bool> IsCallerSuperAdminAsync()
++        {
++            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
++            if (!int.TryParse(idClaim, out var callerId)) return false;
++            var caller = await _context.Users.FindAsync(callerId);
++            return caller?.IsSuperAdmin == true;
++        }
++
+         [HttpGet("me")]
+         public async Task<IActionResult> GetMe()
+         {
+@@ -120,31 +132,59 @@ namespace CAESAR.Server.Controllers
+         [HttpPatch("{id}")]
+         public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
+         {
++            // Редактировать чужой аккаунт может только супер-админ (панель /admin).
++            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
++
+             var user = await _context.Users.FindAsync(id);
+-            if (user == null)
+-            {
+-                return NotFound();
+-            }
++            if (user == null) return NotFound();
+ 
+-            user.UserName = dto.UserName ?? user.UserName;
+-            user.Email = dto.Email ?? user.Email;
++            if (!string.IsNullOrWhiteSpace(dto.UserName)) user.UserName = dto.UserName;
++            if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email;
+ 
+             await _context.SaveChangesAsync();
+-            return Ok(user);
++            return Ok(new { user.Id, Username = user.UserName, user.Email, Status = user.IsBlocked ? "blocked" : "active" });
++        }
++
++        // Блокировка / разблокировка пользователя (панель супер-админа).
++        [HttpPost("{id}/block")]
++        public async Task<IActionResult> BlockUser(int id)
++        {
++            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
++
++            var user = await _context.Users.FindAsync(id);
++            if (user == null) return NotFound();
++            if (user.IsSuperAdmin) return BadRequest("Нельзя заблокировать супер-администратора.");
++
++            user.IsBlocked = true;
++            await _context.SaveChangesAsync();
++            return Ok(new { user.Id, Status = "blocked" });
++        }
++
++        [HttpPost("{id}/unblock")]
++        public async Task<IActionResult> UnblockUser(int id)
++        {
++            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
++
++            var user = await _context.Users.FindAsync(id);
++            if (user == null) return NotFound();
++
++            user.IsBlocked = false;
++            await _context.SaveChangesAsync();
++            return Ok(new { user.Id, Status = "active" });
+         }
+ 
+         [HttpDelete("{id}")]
+         public async Task<IActionResult> DeleteUser(int id)
+         {
++            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
++
+             var user = await _context.Users.FindAsync(id);
+-            if (user == null)
+-            {
+-                return NotFound();
+-            }
++            if (user == null) return NotFound();
++            if (user.IsSuperAdmin) return BadRequest("Нельзя удалить супер-администратора.");
+ 
+             _context.Users.Remove(user);
+             await _context.SaveChangesAsync();
+-            return Ok(user);
++            return Ok(new { message = "Пользователь удалён." });
+         }
+     }
+ }
+diff --git a/CAESAR.Server/DTOs/AiChatDtos.cs b/CAESAR.Server/DTOs/AiChatDtos.cs
+new file mode 100644
+index 0000000..386b343
+--- /dev/null
++++ b/CAESAR.Server/DTOs/AiChatDtos.cs
+@@ -0,0 +1,12 @@
++namespace CAESAR.Server.DTOs
++{
++    public class AiChatRequestDto
++    {
++        public string Message { get; set; } = string.Empty;
++    }
++
++    public class AiChatResponseDto
++    {
++        public string Text { get; set; } = string.Empty;
++    }
++}
+diff --git a/CAESAR.Server/DTOs/MemberDtos.cs b/CAESAR.Server/DTOs/MemberDtos.cs
+new file mode 100644
+index 0000000..1d5673f
+--- /dev/null
++++ b/CAESAR.Server/DTOs/MemberDtos.cs
+@@ -0,0 +1,17 @@
++namespace CAESAR.Server.DTOs
++{
++    // Добавление участника в проект по email (регистрация обязательна заранее).
++    public class AddMemberDto
++    {
++        public string Email { get; set; } = string.Empty;
++        public int RoleId { get; set; }             // 1..5 (UserRole)
++        public int? AllowedPageId { get; set; }     // ограничение по странице (для PageAdmin и т.п.)
++    }
++
++    // Изменение роли/страницы участника.
++    public class UpdateMemberDto
++    {
++        public int? RoleId { get; set; }
++        public int? AllowedPageId { get; set; }
++    }
++}
+diff --git a/CAESAR.Server/Migrations/20260701000000_AddUserAccessFlags.Designer.cs b/CAESAR.Server/Migrations/20260701000000_AddUserAccessFlags.Designer.cs
+new file mode 100644
+index 0000000..398fbca
+--- /dev/null
++++ b/CAESAR.Server/Migrations/20260701000000_AddUserAccessFlags.Designer.cs
+@@ -0,0 +1,444 @@
++// <auto-generated />
++using System;
++using CAESAR.Server.Data;
++using Microsoft.EntityFrameworkCore;
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
++using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
++
++#nullable disable
++
++namespace CAESAR.Server.Migrations
++{
++    [DbContext(typeof(AppDbContext))]
++    [Migration("20260701000000_AddUserAccessFlags")]
++    partial class AddUserAccessFlags
++    {
++        /// <inheritdoc />
++        protected override void BuildTargetModel(ModelBuilder modelBuilder)
++        {
++#pragma warning disable 612, 618
++            modelBuilder
++                .HasAnnotation("ProductVersion", "10.0.9")
++                .HasAnnotation("Relational:MaxIdentifierLength", 63);
++
++            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTask", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<int?>("AssignedToId")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<int>("CreatedById")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime?>("Deadline")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Description")
++                        .HasColumnType("text");
++
++                    b.Property<int>("Position")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("ProjectPageId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("Status")
++                        .HasColumnType("integer");
++
++                    b.Property<string>("Title")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<DateTime>("UpdatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("AssignedToId");
++
++                    b.HasIndex("CreatedById");
++
++                    b.HasIndex("ProjectPageId");
++
++                    b.ToTable("BoardTasks");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTaskHistory", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<string>("ActionType")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int?>("BoardTaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Details")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("StatusAfter")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("StatusBefore")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("TaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("BoardTaskId");
++
++                    b.HasIndex("UserId");
++
++                    b.ToTable("TaskHistories");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Comment", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<int?>("BoardtaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<int>("TaskId")
++                        .HasColumnType("integer");
++
++                    b.Property<string>("Text")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("BoardtaskId");
++
++                    b.HasIndex("UserId");
++
++                    b.ToTable("Comments");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Member", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<int?>("AllowedPageId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("ProjectId")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("Role")
++                        .HasColumnType("integer");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("AllowedPageId");
++
++                    b.HasIndex("ProjectId");
++
++                    b.HasIndex("UserId", "ProjectId")
++                        .IsUnique();
++
++                    b.ToTable("Members");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Project", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<string>("Name")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("Theme")
++                        .HasColumnType("text");
++
++                    b.HasKey("Id");
++
++                    b.ToTable("Projects");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.ProjectPage", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<string>("Name")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("ProjectId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("ProjectId");
++
++                    b.ToTable("ProjectPages");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.TelegramLink", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<DateTime?>("CodeExpiresAtUtc")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<DateTime>("CreatedAtUtc")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<bool>("IsLinked")
++                        .HasColumnType("boolean");
++
++                    b.Property<string>("LinkCode")
++                        .HasColumnType("text");
++
++                    b.Property<long?>("TelegramId")
++                        .HasColumnType("bigint");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("UserId");
++
++                    b.ToTable("TelegramLinks");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.User", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<DateTime>("CreatedAt")
++                        .HasColumnType("timestamp with time zone");
++
++                    b.Property<bool>("IsBlocked")
++                        .HasColumnType("boolean");
++
++                    b.Property<bool>("IsSuperAdmin")
++                        .HasColumnType("boolean");
++
++                    b.Property<string>("Email")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("PasswordHash")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("UserName")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.HasKey("Id");
++
++                    b.ToTable("Users");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.UserNotification", b =>
++                {
++                    b.Property<int>("Id")
++                        .ValueGeneratedOnAdd()
++                        .HasColumnType("integer");
++
++                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
++
++                    b.Property<string>("Provider")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<string>("ProviderUserId")
++                        .IsRequired()
++                        .HasColumnType("text");
++
++                    b.Property<int>("UserId")
++                        .HasColumnType("integer");
++
++                    b.HasKey("Id");
++
++                    b.HasIndex("UserId", "Provider")
++                        .IsUnique();
++
++                    b.ToTable("UserNotifications");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTask", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.User", "AssignedTo")
++                        .WithMany()
++                        .HasForeignKey("AssignedToId");
++
++                    b.HasOne("CAESAR.Server.Models.User", "CreatedBy")
++                        .WithMany()
++                        .HasForeignKey("CreatedById")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.HasOne("CAESAR.Server.Models.ProjectPage", "ProjectPage")
++                        .WithMany()
++                        .HasForeignKey("ProjectPageId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("AssignedTo");
++
++                    b.Navigation("CreatedBy");
++
++                    b.Navigation("ProjectPage");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.BoardTaskHistory", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.BoardTask", "BoardTask")
++                        .WithMany()
++                        .HasForeignKey("BoardTaskId");
++
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("BoardTask");
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Comment", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.BoardTask", "Boardtask")
++                        .WithMany()
++                        .HasForeignKey("BoardtaskId");
++
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("Boardtask");
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.Member", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.ProjectPage", "AllowedPage")
++                        .WithMany()
++                        .HasForeignKey("AllowedPageId");
++
++                    b.HasOne("CAESAR.Server.Models.Project", "Project")
++                        .WithMany()
++                        .HasForeignKey("ProjectId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("AllowedPage");
++
++                    b.Navigation("Project");
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.ProjectPage", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.Project", "Project")
++                        .WithMany()
++                        .HasForeignKey("ProjectId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("Project");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.TelegramLink", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("User");
++                });
++
++            modelBuilder.Entity("CAESAR.Server.Models.UserNotification", b =>
++                {
++                    b.HasOne("CAESAR.Server.Models.User", "User")
++                        .WithMany()
++                        .HasForeignKey("UserId")
++                        .OnDelete(DeleteBehavior.Cascade)
++                        .IsRequired();
++
++                    b.Navigation("User");
++                });
++#pragma warning restore 612, 618
++        }
++    }
++}
+diff --git a/CAESAR.Server/Migrations/20260701000000_AddUserAccessFlags.cs b/CAESAR.Server/Migrations/20260701000000_AddUserAccessFlags.cs
+new file mode 100644
+index 0000000..601d63d
+--- /dev/null
++++ b/CAESAR.Server/Migrations/20260701000000_AddUserAccessFlags.cs
+@@ -0,0 +1,35 @@
++using Microsoft.EntityFrameworkCore.Migrations;
++
++#nullable disable
++
++namespace CAESAR.Server.Migrations
++{
++    /// <inheritdoc />
++    public partial class AddUserAccessFlags : Migration
++    {
++        /// <inheritdoc />
++        protected override void Up(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.AddColumn<bool>(
++                name: "IsBlocked",
++                table: "Users",
++                type: "boolean",
++                nullable: false,
++                defaultValue: false);
++
++            migrationBuilder.AddColumn<bool>(
++                name: "IsSuperAdmin",
++                table: "Users",
++                type: "boolean",
++                nullable: false,
++                defaultValue: false);
++        }
++
++        /// <inheritdoc />
++        protected override void Down(MigrationBuilder migrationBuilder)
++        {
++            migrationBuilder.DropColumn(name: "IsBlocked", table: "Users");
++            migrationBuilder.DropColumn(name: "IsSuperAdmin", table: "Users");
++        }
++    }
++}
+diff --git a/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs b/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs
+index 69d73a8..3cbfde6 100644
+--- a/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs
++++ b/CAESAR.Server/Migrations/AppDbContextModelSnapshot.cs
+@@ -269,6 +269,12 @@ namespace CAESAR.Server.Migrations
+                     b.Property<DateTime>("CreatedAt")
+                         .HasColumnType("timestamp with time zone");
+ 
++                    b.Property<bool>("IsBlocked")
++                        .HasColumnType("boolean");
++
++                    b.Property<bool>("IsSuperAdmin")
++                        .HasColumnType("boolean");
++
+                     b.Property<string>("Email")
+                         .IsRequired()
+                         .HasColumnType("text");
+diff --git a/CAESAR.Server/Models/User.cs b/CAESAR.Server/Models/User.cs
+index 19f3efb..8940d94 100644
+--- a/CAESAR.Server/Models/User.cs
++++ b/CAESAR.Server/Models/User.cs
+@@ -10,5 +10,9 @@ namespace CAESAR.Server.Models
+         // Дата регистрации пользователя (фиксируется один раз при создании аккаунта
+         // и больше не меняется — не путать с датой последнего входа).
+         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
++
++        // Управление доступом уровня системы (панель супер-админа).
++        public bool IsBlocked { get; set; } = false;
++        public bool IsSuperAdmin { get; set; } = false;
+     }
+ }
+diff --git a/CAESAR.Server/Program.cs b/CAESAR.Server/Program.cs
+index 54cec45..3be026e 100644
+--- a/CAESAR.Server/Program.cs
++++ b/CAESAR.Server/Program.cs
+@@ -21,6 +21,7 @@ namespace CAESAR.Server
+             // Add services to the container.
+ 
+             builder.Services.AddControllers();
++            builder.Services.AddHttpClient();
+             builder.Services.AddOpenApi();
+ 
+             // CORS для дев-окружения (Vite-клиент на localhost)
+diff --git a/CAESAR.Server/Services/ProjectPermissions.cs b/CAESAR.Server/Services/ProjectPermissions.cs
+new file mode 100644
+index 0000000..8309b26
+--- /dev/null
++++ b/CAESAR.Server/Services/ProjectPermissions.cs
+@@ -0,0 +1,73 @@
++using CAESAR.Server.Models;
++
++namespace CAESAR.Server.Services
++{
++    // Централизованная проверка прав участника проекта.
++    // Раньше проверки были размазаны по контроллерам «магическими» числами
++    // (Role == 3 || Role == 5). Теперь единый источник правды.
++    public static class ProjectPermissions
++    {
++        public static UserRole RoleOf(Member m) => (UserRole)m.Role;
++
++        // GlobalAdmin видит весь проект. Остальные с заданным AllowedPageId
++        // ограничены своей страницей (доской).
++        public static bool CanAccessPage(Member m, int pageId)
++        {
++            if (RoleOf(m) == UserRole.GlobalAdmin) return true;
++            if (m.AllowedPageId is int allowed) return allowed == pageId;
++            return true; // страница не ограничена — доступ к любой странице проекта
++        }
++
++        public static bool CanCreateTask(Member m)
++        {
++            var r = RoleOf(m);
++            // Разработчик и Наблюдатель не создают задачи (см. Таблицу 6 док-ии).
++            return r is UserRole.GlobalAdmin or UserRole.PageAdmin or UserRole.Tester;
++        }
++
++        public static bool CanEditTask(Member m) => RoleOf(m) != UserRole.Viewer;
++
++        public static bool CanDeleteTask(Member m)
++        {
++            var r = RoleOf(m);
++            return r is UserRole.GlobalAdmin or UserRole.PageAdmin;
++        }
++
++        public static bool CanComment(Member m) => RoleOf(m) != UserRole.Viewer;
++
++        // Управление участниками/страницами/приглашениями.
++        public static bool CanManageMembers(Member m)
++        {
++            var r = RoleOf(m);
++            return r is UserRole.GlobalAdmin or UserRole.PageAdmin;
++        }
++
++        public static bool CanCreatePage(Member m)
++        {
++            var r = RoleOf(m);
++            return r is UserRole.GlobalAdmin or UserRole.PageAdmin;
++        }
++
++        // Проверка легальности перемещения по канбану с учётом роли.
++        // Возвращает null если разрешено, иначе текст ошибки.
++        public static string? ValidateMove(Member m, BoardTaskStatus from, BoardTaskStatus to)
++        {
++            int diff = System.Math.Abs((int)to - (int)from);
++            if (from != to && diff != 1)
++                return "Нельзя перепрыгивать через колонку — только на соседнюю.";
++
++            if (RoleOf(m) == UserRole.Tester)
++            {
++                // Тестировщик: только Выполнение ↔ Тестирование ↔ (не Готово).
++                if (to == BoardTaskStatus.Done)
++                    return "Тестировщик не может переводить задачу в 'Готово'.";
++                if (from == BoardTaskStatus.Preparaion && to == BoardTaskStatus.Execution)
++                    return "Тестировщик не может двигать задачу из 'Преподготовки'.";
++            }
++            if (RoleOf(m) == UserRole.Viewer)
++                return "Наблюдатель не может перемещать задачи.";
++
++            return null;
++        }
++    }
++}
+diff --git a/bot/caesar_api.py b/bot/caesar_api.py
+index 941ecd8..dbd6c7c 100644
+--- a/bot/caesar_api.py
++++ b/bot/caesar_api.py
+@@ -26,7 +26,7 @@ async def link_telegram(code: str, telegram_id: int) -> dict:
+         return {
+             "jwt": data["jwt"],
+             "user_id": str(data["userId"]),
+-            "full_name": data.get("fullName", ""),
++            "full_name": data.get("userName") or data.get("fullName", ""),
+         }
+ 
+ 
+diff --git a/caesar.client/src/App.tsx b/caesar.client/src/App.tsx
+index bd677a0..86ac838 100644
+--- a/caesar.client/src/App.tsx
++++ b/caesar.client/src/App.tsx
+@@ -27,60 +27,42 @@ function App() {
+   const [currentUser, setCurrentUser] = useState<User | null>(null);
+   const [projectName, setProjectName] = useState('');
+   const [projectTheme, setProjectTheme] = useState('');
+-  const [selectedPageId, setSelectedPageId] = useState<number>(1);
++  // Задача 1/4: трекаем именно проект, а не только страницу №1.
++  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
++  const [selectedPageId, setSelectedPageId] = useState<number | null>(null);
+ 
+-  // Загрузка текущего пользователя при монтировании
+   useEffect(() => {
+     const loadCurrentUser = async () => {
+       try {
+-        console.log('Загрузка текущего пользователя...');
+         const response = await api.getCurrentUser();
+-        console.log('Пользователь загружен:', response.data);
+         setCurrentUser(response.data);
+       } catch (error) {
+         console.error('Ошибка загрузки пользователя:', error);
+       }
+     };
+-    
+     const token = localStorage.getItem('caesar_token');
+-    console.log('Токен при монтировании:', token ? 'присутствует' : 'отсутствует');
+-    if (token) {
+-      loadCurrentUser();
+-    }
++    if (token) loadCurrentUser();
+   }, [api]);
+ 
+-  const handleLogin = (username: string) => {
+-    console.log('handleLogin вызван с username:', username);
+-    
+-    // Проверяем, что токен сохранился
++  const handleLogin = () => {
+     const token = localStorage.getItem('caesar_token');
+-    console.log('Токен в handleLogin:', token ? 'присутствует' : 'отсутствует');
+-    
+     if (!token) {
+-      console.warn('Токен отсутствует после входа!');
+-      // Если токена нет, перенаправляем на логин
+       setCurrentScreen('login');
+       return;
+     }
+-    
+-    // Загружаем данные пользователя
+     api.getCurrentUser()
+       .then((response: any) => {
+-        console.log('Данные пользователя загружены:', response.data);
+         setCurrentUser(response.data);
+         setCurrentScreen('projects');
+       })
+-      .catch((error: any) => {
+-        console.error('Ошибка загрузки пользователя после входа:', error);
+-        // Даже при ошибке переходим на проекты
+-        setCurrentScreen('projects');
+-      });
++      .catch(() => setCurrentScreen('projects'));
+   };
+ 
+-  const handleProjectCreated = (name: string, theme: string, pageId: number) => {
++  const handleProjectCreated = (projectId: number, name: string, theme: string, pageId: number) => {
++    setSelectedProjectId(projectId);
++    setSelectedPageId(pageId);
+     setProjectName(name);
+     setProjectTheme(theme);
+-    setSelectedPageId(pageId);
+     setCurrentScreen('board');
+   };
+ 
+@@ -89,22 +71,21 @@ function App() {
+     name?: string,
+     theme?: string,
+   ) => {
+-    // Загружаем страницы выбранного проекта и открываем доску ИМЕННО его
+-    // первой страницы — иначе доска всегда показывала задачи страницы №1
+-    // (из-за чего задачи «перетекали» между всеми проектами).
++    // Открываем ИМЕННО выбранный проект: сохраняем его id и первую доску.
++    // Раньше без projectId контекст всегда сваливался на страницу №1.
++    setSelectedProjectId(projectId);
++    setProjectName(name || 'Проект');
++    setProjectTheme(theme || '');
+     try {
+       const response = await api.getProjectPages(projectId);
+       const pages = response.data || [];
+-      const firstPageId = pages.length > 0 ? pages[0].id : null;
+-
+-      if (firstPageId) {
+-        setSelectedPageId(firstPageId);
+-        setProjectName(name || 'Проект');
+-        setProjectTheme(theme || '');
++      if (pages.length > 0) {
++        setSelectedPageId(pages[0].id);
+         setCurrentScreen('board');
+       } else {
+-        // У проекта ещё нет ни одной доски — отправляем в мастер создания
+-        setCurrentScreen('setup');
++        // Досок ещё нет — Board сам создаст первую.
++        setSelectedPageId(null);
++        setCurrentScreen('board');
+       }
+     } catch (error) {
+       console.error('Ошибка загрузки страниц проекта:', error);
+@@ -114,20 +95,16 @@ function App() {
+   const handleLogout = () => {
+     localStorage.removeItem('caesar_token');
+     setCurrentUser(null);
++    setSelectedProjectId(null);
++    setSelectedPageId(null);
+     setCurrentScreen('landing');
+   };
+ 
+   const navigate = (page: string) => setCurrentScreen(page as Screen);
+ 
+   // ============ Публичные экраны ============
+-  if (currentScreen === 'landing') {
+-    return <Landing onNavigate={navigate} />;
+-  }
+-
+-  if (currentScreen === 'login') {
+-    return <Login onLogin={handleLogin} onNavigate={navigate} />;
+-  }
+-
++  if (currentScreen === 'landing') return <Landing onNavigate={navigate} />;
++  if (currentScreen === 'login') return <Login onLogin={handleLogin} onNavigate={navigate} />;
+   if (currentScreen === 'register') {
+     return (
+       <Register
+@@ -137,7 +114,6 @@ function App() {
+       />
+     );
+   }
+-
+   if (currentScreen === 'invite') {
+     return (
+       <Invite
+@@ -146,16 +122,12 @@ function App() {
+       />
+     );
+   }
+-
+   if (currentScreen === 'error') {
+     return <Error code={404} onGoHome={() => setCurrentScreen('projects')} />;
+   }
+ 
+   // ============ Приложение (общий каркас AppShell) ============
+-  const shellProps = {
+-    onNavigate: navigate,
+-    onLogout: handleLogout,
+-  };
++  const shellProps = { onNavigate: navigate, onLogout: handleLogout };
+ 
+   if (currentScreen === 'projects') {
+     return (
+@@ -185,23 +157,27 @@ function App() {
+         subtitle={projectTheme}
+         active="projects"
+       >
+-        <Board pageId={selectedPageId} />
++        <Board
++          projectId={selectedProjectId}
++          initialPageId={selectedPageId}
++          onActivePageChange={setSelectedPageId}
++        />
+       </AppShell>
+     );
+   }
+ 
+   if (currentScreen === 'calendar') {
+     return (
+-      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Календарь" active="calendar">
+-        <Calendar pageId={selectedPageId} />
++      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Календарь" subtitle={projectName} active="calendar">
++        <Calendar projectId={selectedProjectId} />
+       </AppShell>
+     );
+   }
+ 
+   if (currentScreen === 'reports') {
+     return (
+-      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Отчёты" active="reports">
+-        <Reports pageId={selectedPageId} />
++      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Отчёты" subtitle={projectName} active="reports">
++        <Reports projectId={selectedProjectId} />
+       </AppShell>
+     );
+   }
+@@ -214,20 +190,14 @@ function App() {
+       role: currentUser?.role || 'Участник',
+       createdAt: currentUser?.createdAt
+         ? new Date(currentUser.createdAt).toLocaleDateString('ru-RU', {
+-            day: '2-digit',
+-            month: 'long',
+-            year: 'numeric',
++            day: '2-digit', month: 'long', year: 'numeric',
+           })
+         : '—',
+       projectsCount: currentUser?.projectsCount ?? 0,
+     };
+-
+     return (
+       <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Профиль" active="profile">
+-        <UserProfile
+-          user={userForProfile}
+-          onLogout={handleLogout}
+-        />
++        <UserProfile user={userForProfile} onLogout={handleLogout} />
+       </AppShell>
+     );
+   }
+@@ -243,4 +213,4 @@ function App() {
+   return null;
+ }
+ 
+-export default App;
+\ No newline at end of file
++export default App;
+diff --git a/caesar.client/src/components/Board/Board.css b/caesar.client/src/components/Board/Board.css
+index 3196c06..28bcb04 100644
+--- a/caesar.client/src/components/Board/Board.css
++++ b/caesar.client/src/components/Board/Board.css
+@@ -100,3 +100,43 @@
+   .board__add-btn { font-size: 14px; padding: 8px 16px; }
+   .board__columns { gap: 8px; }
+ }
++
++/* Табы досок проекта (Задача 3) */
++.board__pages {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  flex-wrap: wrap;
++  margin: 4px 0 18px;
++  padding-bottom: 10px;
++  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
++}
++.board__page-tab {
++  padding: 7px 16px;
++  border-radius: 10px;
++  border: 1px solid rgba(255, 255, 255, 0.12);
++  background: rgba(255, 255, 255, 0.04);
++  color: rgba(255, 255, 255, 0.75);
++  font-size: 13px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.15s ease;
++}
++.board__page-tab:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
++.board__page-tab.is-active {
++  background: rgba(99, 102, 241, 0.18);
++  border-color: rgba(99, 102, 241, 0.5);
++  color: #fff;
++}
++.board__page-add {
++  padding: 7px 14px;
++  border-radius: 10px;
++  border: 1px dashed rgba(255, 255, 255, 0.2);
++  background: transparent;
++  color: rgba(255, 255, 255, 0.6);
++  font-size: 13px;
++  font-weight: 600;
++  cursor: pointer;
++  transition: all 0.15s ease;
++}
++.board__page-add:hover { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
+diff --git a/caesar.client/src/components/Board/Board.tsx b/caesar.client/src/components/Board/Board.tsx
+index 0c6a835..dc90361 100644
+--- a/caesar.client/src/components/Board/Board.tsx
++++ b/caesar.client/src/components/Board/Board.tsx
+@@ -1,4 +1,4 @@
+-import { useState } from 'react';
++import { useState, useEffect, useCallback } from 'react';
+ import {
+   DndContext,
+   DragOverlay,
+@@ -6,9 +6,11 @@ import {
+   TouchSensor,
+   useSensor,
+   useSensors,
++  closestCorners,
+   defaultDropAnimationSideEffects,
+ } from '@dnd-kit/core';
+ import type { DragEndEvent, DragStartEvent, DropAnimation } from '@dnd-kit/core';
++import { useApi } from '../../context/ApiContext';
+ import { useTasks } from '../../hooks/useTasks';
+ import type { Task, TaskStatus } from '../../types';
+ import { STATUS_ORDER } from '../../types';
+@@ -21,38 +23,88 @@ import './Board.css';
+ 
+ const COLUMNS: TaskStatus[] = ['preparation', 'execution', 'testing', 'done'];
+ 
++interface ProjectPage {
++  id: number;
++  name: string;
++}
++
+ interface BoardProps {
+-  pageId?: number;
++  projectId?: number | null;
++  initialPageId?: number | null;
++  onActivePageChange?: (pageId: number) => void;
+ }
+ 
+-export const Board = ({ pageId = 1 }: BoardProps) => {
+-  const { tasks, loading, error, getTasksByStatus, moveTask, createTask, loadTasks } = useTasks(pageId);
++export const Board = ({ projectId, initialPageId, onActivePageChange }: BoardProps) => {
++  const api = useApi();
++
++  // ---- Страницы (доски) проекта — Задача 3 ----
++  const [pages, setPages] = useState<ProjectPage[]>([]);
++  const [activePageId, setActivePageId] = useState<number | null>(initialPageId ?? null);
++  const [pagesLoading, setPagesLoading] = useState(false);
++
++  const loadPages = useCallback(async () => {
++    if (!projectId) return;
++    setPagesLoading(true);
++    try {
++      const res = await api.getProjectPages(projectId);
++      let list: ProjectPage[] = res.data || [];
++      // У проекта нет ни одной доски — создаём базовую.
++      if (list.length === 0) {
++        const created = await api.createProjectPage({ name: 'Основная доска', projectId });
++        list = [created.data];
++      }
++      setPages(list);
++      setActivePageId(prev => {
++        const next = prev && list.some(p => p.id === prev) ? prev : list[0].id;
++        onActivePageChange?.(next);
++        return next;
++      });
++    } catch (e) {
++      console.error('Ошибка загрузки досок:', e);
++    } finally {
++      setPagesLoading(false);
++    }
++  }, [api, projectId, onActivePageChange]);
++
++  useEffect(() => { loadPages(); }, [loadPages]);
++
++  const handleCreatePage = async () => {
++    if (!projectId) return;
++    const name = window.prompt('Название новой доски:', `Доска ${pages.length + 1}`);
++    if (!name || !name.trim()) return;
++    try {
++      const created = await api.createProjectPage({ name: name.trim(), projectId });
++      setPages(prev => [...prev, created.data]);
++      setActivePageId(created.data.id);
++      onActivePageChange?.(created.data.id);
++    } catch (e: any) {
++      alert(e?.response?.data || 'Не удалось создать доску (нужны права администратора).');
++    }
++  };
++
++  const switchPage = (id: number) => {
++    setActivePageId(id);
++    onActivePageChange?.(id);
++  };
++
++  // ---- Задачи активной доски ----
++  const { tasks, loading, error, getTasksByStatus, moveTask, createTask, loadTasks } =
++    useTasks(activePageId ?? undefined);
++
+   const [activeTask, setActiveTask] = useState<Task | null>(null);
+   const [isModalOpen, setIsModalOpen] = useState(false);
+   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+ 
+-  // Сенсоры с порогом активации: короткий клик открывает задачу,
+-  // а перетаскивание начинается только после небольшого смещения —
+-  // это убирает «залипание» и конфликт клика с драгом.
+   const sensors = useSensors(
+-    useSensor(PointerSensor, {
+-      activationConstraint: { distance: 6 },
+-    }),
+-    useSensor(TouchSensor, {
+-      activationConstraint: { delay: 150, tolerance: 8 },
+-    }),
++    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
++    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+   );
+ 
+-  // Плавная анимация «приземления» карточки в новую колонку.
+   const dropAnimation: DropAnimation = {
+     duration: 220,
+     easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+-    sideEffects: defaultDropAnimationSideEffects({
+-      styles: {
+-        active: { opacity: '0.35' },
+-      },
+-    }),
++    sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.35' } } }),
+   };
+ 
+   const handleTaskClick = (task: Task) => {
+@@ -60,85 +112,111 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
+     setIsDetailsOpen(true);
+   };
+ 
+-  const handleTaskUpdated = (_updatedTask: Task) => {
+-    loadTasks();
+-  };
+-
+-  const handleTaskDeleted = (_taskId: number) => {
+-    loadTasks();
+-  };
+-
+   const handleDragStart = (event: DragStartEvent) => {
+-    const { task } = event.active.data.current || {};
+-    if (task) {
+-      setActiveTask(task);
+-    }
++    const id = event.active.id as number;
++    const task = tasks.find(t => t.id === id) || null;
++    setActiveTask(task);
+   };
+ 
+   const handleDragEnd = (event: DragEndEvent) => {
+     setActiveTask(null);
+-    
+     const { active, over } = event;
+     if (!over) return;
+ 
+-    const taskId = active.id as number;
+-    const newStatus = over.id as TaskStatus;
+-    
+-    const task = tasks.find(t => t.id === taskId);
++    const activeId = active.id as number;
++    const task = tasks.find(t => t.id === activeId);
+     if (!task) return;
+ 
+-    if (task.status === newStatus) return;
++    // Определяем целевую колонку и позицию.
++    const overId = over.id;
++    let targetStatus: TaskStatus;
++    let targetIndex: number;
++
++    if (typeof overId === 'string' && overId.startsWith('col:')) {
++      targetStatus = overId.slice(4) as TaskStatus;
++      targetIndex = getTasksByStatus(targetStatus).filter(t => t.id !== activeId).length;
++    } else {
++      const overTask = tasks.find(t => t.id === overId);
++      if (!overTask) return;
++      targetStatus = overTask.status;
++      const colTasks = getTasksByStatus(targetStatus).filter(t => t.id !== activeId);
++      const idx = colTasks.findIndex(t => t.id === overId);
++      targetIndex = idx < 0 ? colTasks.length : idx;
++    }
+ 
+-    const oldIndex = STATUS_ORDER[task.status];
+-    const newIndex = STATUS_ORDER[newStatus];
+-    const diff = Math.abs(oldIndex - newIndex);
+-    
+-    if (diff !== 1) {
+-      alert('Нельзя перепрыгивать через колонку! Перемещайте только на соседнюю.');
+-      return;
++    const sameColumn = task.status === targetStatus;
++
++    if (!sameColumn) {
++      const diff = Math.abs(STATUS_ORDER[task.status] - STATUS_ORDER[targetStatus]);
++      if (diff !== 1) {
++        alert('Нельзя перепрыгивать через колонку! Перемещайте только на соседнюю.');
++        return;
++      }
++    } else {
++      const curIndex = getTasksByStatus(targetStatus).findIndex(t => t.id === activeId);
++      if (curIndex === targetIndex) return; // позиция не изменилась
+     }
+ 
+-    moveTask(taskId, newStatus);
++    moveTask(activeId, targetStatus, targetIndex).catch((e: any) => {
++      alert(e?.response?.data || 'Перемещение отклонено (проверьте права роли).');
++    });
+   };
+ 
+-  if (loading) {
+-    return (
+-      <div className="board__loading">
+-        <div className="board__spinner"></div>
+-        <p>Загрузка задач...</p>
+-      </div>
+-    );
+-  }
+-
+-  if (error) {
+-    return (
+-      <div className="board__error">
+-        <p><Icon name="alert" size={16} /> {error}</p>
+-        <button onClick={() => window.location.reload()}>Обновить</button>
+-      </div>
+-    );
+-  }
+-
+   return (
+-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
++    <DndContext
++      sensors={sensors}
++      collisionDetection={closestCorners}
++      onDragStart={handleDragStart}
++      onDragEnd={handleDragEnd}
++    >
+       <div className="board">
+         <div className="board__header">
+           <h1 className="board__title"><Icon name="board" size={22} /> Доска задач</h1>
+-          <button className="board__add-btn" onClick={() => setIsModalOpen(true)}>
++          <button className="board__add-btn" onClick={() => setIsModalOpen(true)} disabled={!activePageId}>
+             + Создать задачу
+           </button>
+         </div>
+-        
+-        <div className="board__columns">
+-          {COLUMNS.map(status => (
+-            <Column
+-              key={status}
+-              status={status}
+-              tasks={getTasksByStatus(status)}
+-              onTaskClick={handleTaskClick}
+-            />
+-          ))}
+-        </div>
++
++        {/* Табы досок проекта (Задача 3) */}
++        {projectId && (
++          <div className="board__pages">
++            {pages.map(p => (
++              <button
++                key={p.id}
++                className={`board__page-tab${p.id === activePageId ? ' is-active' : ''}`}
++                onClick={() => switchPage(p.id)}
++              >
++                {p.name}
++              </button>
++            ))}
++            <button className="board__page-add" onClick={handleCreatePage} title="Добавить доску">
++              + Доска
++            </button>
++          </div>
++        )}
++
++        {pagesLoading || loading ? (
++          <div className="board__loading">
++            <div className="board__spinner"></div>
++            <p>Загрузка задач...</p>
++          </div>
++        ) : error ? (
++          <div className="board__error">
++            <p><Icon name="alert" size={16} /> {error}</p>
++            <button onClick={() => loadTasks()}>Обновить</button>
++          </div>
++        ) : (
++          <div className="board__columns">
++            {COLUMNS.map(status => (
++              <Column
++                key={status}
++                status={status}
++                tasks={getTasksByStatus(status)}
++                onTaskClick={handleTaskClick}
++              />
++            ))}
++          </div>
++        )}
+       </div>
+ 
+       <DragOverlay dropAnimation={dropAnimation}>
+@@ -153,6 +231,7 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
+         isOpen={isModalOpen}
+         onClose={() => setIsModalOpen(false)}
+         onCreate={createTask}
++        pageId={activePageId ?? undefined}
+       />
+ 
+       <TaskDetailsModal
+@@ -162,9 +241,9 @@ export const Board = ({ pageId = 1 }: BoardProps) => {
+           setIsDetailsOpen(false);
+           setSelectedTask(null);
+         }}
+-        onTaskUpdated={handleTaskUpdated}
+-        onTaskDeleted={handleTaskDeleted}
++        onTaskUpdated={() => loadTasks()}
++        onTaskDeleted={() => loadTasks()}
+       />
+     </DndContext>
+   );
+-};
+\ No newline at end of file
++};
+diff --git a/caesar.client/src/components/Column/Column.tsx b/caesar.client/src/components/Column/Column.tsx
+index 9794fc8..35a236d 100644
+--- a/caesar.client/src/components/Column/Column.tsx
++++ b/caesar.client/src/components/Column/Column.tsx
+@@ -1,4 +1,6 @@
+ import { useDroppable } from '@dnd-kit/core';
++import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
++import { CSS } from '@dnd-kit/utilities';
+ import type { Task, TaskStatus } from '../../types';
+ import { STATUS_LABELS } from '../../types';
+ import { TaskCard } from '../TaskCard/TaskCard';
+@@ -10,39 +12,54 @@ interface ColumnProps {
+   onTaskClick: (task: Task) => void;
+ }
+ 
++// Обёртка карточки в сортируемый элемент (реордер внутри колонки — Задача 2).
++const SortableTaskCard = ({ task, onClick }: { task: Task; onClick: (t: Task) => void }) => {
++  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
++    id: task.id,
++    data: { task, status: task.status },
++  });
++
++  const style: React.CSSProperties = {
++    transform: CSS.Transform.toString(transform),
++    transition,
++    opacity: isDragging ? 0.4 : 1,
++  };
++
++  return (
++    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
++      <TaskCard task={task} onClick={onClick} />
++    </div>
++  );
++};
++
+ export const Column = ({ status, tasks, onTaskClick }: ColumnProps) => {
++  // Колонка — droppable-контейнер (нужно для дропа в пустую колонку).
+   const { setNodeRef, isOver } = useDroppable({
+-    id: status,
+-    data: {
+-      status,
+-    },
++    id: `col:${status}`,
++    data: { status, isColumn: true },
+   });
+ 
+   const label = STATUS_LABELS[status];
++  const ids = tasks.map(t => t.id);
+ 
+   return (
+-    <div 
+-      ref={setNodeRef}
+-      className={`column ${isOver ? 'column--drag-over' : ''}`}
+-    >
++    <div ref={setNodeRef} className={`column ${isOver ? 'column--drag-over' : ''}`}>
+       <div className="column__header">
+         <h3 className="column__title">{label}</h3>
+         <span className="column__count">{tasks.length}</span>
+       </div>
+-      
++
+       <div className="column__tasks">
+-        {tasks.length === 0 ? (
+-          <div className="column__empty">Нет задач</div>
+-        ) : (
+-          tasks.map(task => (
+-            <TaskCard 
+-              key={task.id} 
+-              task={task} 
+-              onClick={onTaskClick}
+-            />
+-          ))
+-        )}
++        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
++          {tasks.length === 0 ? (
++            <div className="column__empty">Нет задач</div>
++          ) : (
++            tasks.map(task => (
++              <SortableTaskCard key={task.id} task={task} onClick={onTaskClick} />
++            ))
++          )}
++        </SortableContext>
+       </div>
+     </div>
+   );
+-};
+\ No newline at end of file
++};
+diff --git a/caesar.client/src/context/ApiContext.tsx b/caesar.client/src/context/ApiContext.tsx
+index 46c085d..dc53ae3 100644
+--- a/caesar.client/src/context/ApiContext.tsx
++++ b/caesar.client/src/context/ApiContext.tsx
+@@ -25,6 +25,7 @@ export interface ApiService {
+   
+   // Tasks
+   getTasksByPage: typeof apiService.getTasksByPage;
++  getTasksByProject: typeof apiService.getTasksByProject;
+   createTask: typeof apiService.createTask;
+   moveTask: typeof apiService.moveTask;
+   updateTask: typeof apiService.updateTask;
+@@ -32,6 +33,23 @@ export interface ApiService {
+   getTaskHistory: typeof apiService.getTaskHistory;
+   createComment: typeof apiService.createComment;
+   getComments: typeof apiService.getComments;
++
++  // Members & roles
++  getRoles: typeof apiService.getRoles;
++  getProjectMembers: typeof apiService.getProjectMembers;
++  addProjectMember: typeof apiService.addProjectMember;
++  updateProjectMember: typeof apiService.updateProjectMember;
++  removeProjectMember: typeof apiService.removeProjectMember;
++
++  // Admin
++  blockUser: typeof apiService.blockUser;
++  unblockUser: typeof apiService.unblockUser;
++
++  // Telegram
++  getTelegramLinkCode: typeof apiService.getTelegramLinkCode;
++
++  // AI
++  aiChat: typeof apiService.aiChat;
+ }
+ 
+ const ApiContext = createContext<ApiService | null>(null);
+diff --git a/caesar.client/src/hooks/useTasks.ts b/caesar.client/src/hooks/useTasks.ts
+index 39339f1..3d4b023 100644
+--- a/caesar.client/src/hooks/useTasks.ts
++++ b/caesar.client/src/hooks/useTasks.ts
+@@ -94,8 +94,13 @@ export const useTasks = (pageId?: number) => {
+           }
+         }
+ 
++        const targetPageId = taskData.page_id ?? pageId;
++        if (!targetPageId) {
++          throw new Error('Не выбрана доска для создания задачи');
++        }
++
+         const payload = {
+-          projectPageId: taskData.page_id ?? pageId ?? 1,
++          projectPageId: targetPageId,
+           title: taskData.title,
+           description: taskData.description ?? '',
+           deadline: deadlineValue, // Отправляем в UTC формате (например, "2026-06-27T00:00:00.000Z")
+@@ -131,27 +136,30 @@ export const useTasks = (pageId?: number) => {
+   );
+ 
+   const moveTask = useCallback(
+-    async (taskId: number, newStatus: TaskStatus) => {
++    async (taskId: number, newStatus: TaskStatus, newPosition?: number) => {
+       try {
+-        const newPosition = tasks.filter(t => t.status === newStatus).length;
++        // Если позиция не задана явно — ставим в конец целевой колонки.
++        const targetCount = tasks.filter(t => t.status === newStatus && t.id !== taskId).length;
++        const position = typeof newPosition === 'number'
++          ? Math.max(0, Math.min(newPosition, targetCount))
++          : targetCount;
+ 
+         const payload = {
+           targetTaskStatus: STATUS_TO_INT[newStatus],
+-          newPosition,
++          newPosition: position,
+         };
+ 
+-        console.log('Перемещение задачи:', { taskId, payload });
+-
+-        const response = await api.moveTask(taskId, payload);
+-        const updated = normalizeTask(response.data);
+-        setTasks(prev => prev.map(t => (t.id === taskId ? updated : t)));
+-        return updated;
++        await api.moveTask(taskId, payload);
++        // Перечитываем — бэкенд пересчитал position по всем карточкам колонки.
++        await loadTasks();
+       } catch (err: any) {
+         console.error('Ошибка перемещения задачи:', err);
++        // Откатываем оптимистичное состояние к серверному.
++        await loadTasks();
+         throw err;
+       }
+     },
+-    [tasks]
++    [tasks, loadTasks]
+   );
+ 
+   useEffect(() => {
+diff --git a/caesar.client/src/pages/Admin/Admin.css b/caesar.client/src/pages/Admin/Admin.css
+index f89c58f..1c8c177 100644
+--- a/caesar.client/src/pages/Admin/Admin.css
++++ b/caesar.client/src/pages/Admin/Admin.css
+@@ -139,3 +139,78 @@
+ .admin-action:hover { background: var(--c-surface-hover); color: var(--c-text); }
+ .admin-action--block:hover  { background: var(--c-danger-bg); color: var(--c-danger); border-color: var(--c-danger-border); }
+ .admin-action--delete:hover { background: var(--c-danger-bg); color: var(--c-danger); border-color: var(--c-danger-border); }
++
++.admin-modal {
++  position: fixed;
++  inset: 0;
++  z-index: 100;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  background: rgba(0,0,0,0.55);
++  padding: 20px;
++}
++
++.admin-modal__content {
++  width: 100%;
++  max-width: 420px;
++  padding: 24px;
++  border-radius: 14px;
++  background: var(--c-surface, #1a1a24);
++  border: 1px solid var(--c-border, #2a2a3a);
++  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
++}
++
++.admin-modal__content h3 {
++  margin: 0 0 16px;
++  font-size: 18px;
++}
++
++.admin-modal__field {
++  margin-bottom: 14px;
++  display: flex;
++  flex-direction: column;
++  gap: 6px;
++}
++
++.admin-modal__field label {
++  font-size: 13px;
++  opacity: 0.75;
++}
++
++.admin-modal__field input {
++  padding: 10px 12px;
++  border-radius: 8px;
++  border: 1px solid var(--c-border, #2a2a3a);
++  background: var(--c-bg, #12121a);
++  color: inherit;
++  font-size: 14px;
++}
++
++.admin-modal__actions {
++  display: flex;
++  gap: 10px;
++  margin-top: 20px;
++}
++
++.admin-modal__btn {
++  flex: 1;
++  padding: 10px 16px;
++  border-radius: 8px;
++  border: 1px solid var(--c-border, #2a2a3a);
++  background: transparent;
++  color: inherit;
++  cursor: pointer;
++  font-size: 14px;
++}
++
++.admin-modal__btn--primary {
++  background: var(--c-accent, #6366f1);
++  border-color: var(--c-accent, #6366f1);
++  color: #fff;
++}
++
++.admin-modal__btn:disabled {
++  opacity: 0.6;
++  cursor: not-allowed;
++}
+diff --git a/caesar.client/src/pages/Admin/Admin.tsx b/caesar.client/src/pages/Admin/Admin.tsx
+index 339c162..32123ec 100644
+--- a/caesar.client/src/pages/Admin/Admin.tsx
++++ b/caesar.client/src/pages/Admin/Admin.tsx
+@@ -31,6 +31,36 @@ export const Admin = () => {
+   const [error, setError] = useState('');
+   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+   const [editingProject, setEditingProject] = useState<AdminProject | null>(null);
++  const [editUsername, setEditUsername] = useState('');
++  const [editEmail, setEditEmail] = useState('');
++  const [saving, setSaving] = useState(false);
++  const [modalError, setModalError] = useState('');
++
++  const openEditUser = (user: AdminUser) => {
++    setEditingUser(user);
++    setEditUsername(user.username);
++    setEditEmail(user.email);
++    setModalError('');
++  };
++
++  const handleSaveUser = async () => {
++    if (!editingUser) return;
++    if (!editUsername.trim() || !editEmail.trim()) {
++      setModalError('Все поля обязательны');
++      return;
++    }
++    try {
++      setSaving(true);
++      setModalError('');
++      await api.updateUser(editingUser.id, { userName: editUsername.trim(), email: editEmail.trim() });
++      setEditingUser(null);
++      await load();
++    } catch (err: any) {
++      setModalError(err.message || 'Не удалось сохранить');
++    } finally {
++      setSaving(false);
++    }
++  };
+ 
+   const load = useCallback(async () => {
+     try {
+@@ -73,28 +103,23 @@ export const Admin = () => {
+ 
+   useEffect(() => { load(); }, [load]);
+ 
+-  const handleBlockUser = async (_userId: number) => {
+-    if (!confirm('Вы уверены, что хотите заблокировать этого пользователя?')) return;
++  const handleToggleBlock = async (user: AdminUser) => {
++    const willBlock = user.status !== 'blocked';
++    const msg = willBlock
++      ? 'Заблокировать этого пользователя? Он не сможет войти в систему.'
++      : 'Разблокировать этого пользователя?';
++    if (!confirm(msg)) return;
+     try {
+-      // TODO: Добавить метод блокировки пользователя в API
+-      // await api.blockUser(userId);
++      if (willBlock) await api.blockUser(user.id);
++      else await api.unblockUser(user.id);
+       await load();
+-    } catch (err) {
+-      console.error('Ошибка блокировки пользователя:', err);
+-      alert('Не удалось заблокировать пользователя');
++    } catch (err: any) {
++      alert(err.message || 'Операция не выполнена');
+     }
+   };
+ 
+   const handleDeleteProject = async (_projectId: number) => {
+-    if (!confirm('Вы уверены, что хотите удалить этот проект?')) return;
+-    try {
+-      // TODO: Добавить метод удаления проекта в API
+-      // await api.deleteProject(projectId);
+-      await load();
+-    } catch (err) {
+-      console.error('Ошибка удаления проекта:', err);
+-      alert('Не удалось удалить проект');
+-    }
++    alert('Удаление проектов пока не поддерживается сервером.');
+   };
+ 
+   const totalTasks = projects.reduce((sum, p) => sum + (p.taskCount ?? 0), 0);
+@@ -164,19 +189,17 @@ export const Admin = () => {
+                       <button 
+                         className="admin-action" 
+                         title="Редактировать"
+-                        onClick={() => setEditingUser(user)}
++                        onClick={() => openEditUser(user)}
+                       >
+                         <Icon name="edit" size={16} />
+                       </button>
+-                      {user.status !== 'blocked' && (
+-                        <button 
+-                          className="admin-action admin-action--block" 
+-                          title="Заблокировать"
+-                          onClick={() => handleBlockUser(user.id)}
+-                        >
+-                          <Icon name="ban" size={16} />
+-                        </button>
+-                      )}
++                      <button 
++                        className={`admin-action ${user.status === 'blocked' ? '' : 'admin-action--block'}`}
++                        title={user.status === 'blocked' ? 'Разблокировать' : 'Заблокировать'}
++                        onClick={() => handleToggleBlock(user)}
++                      >
++                        <Icon name="ban" size={16} />
++                      </button>
+                     </td>
+                   </tr>
+                 ))}
+@@ -230,15 +253,45 @@ export const Admin = () => {
+         </div>
+       )}
+ 
+-      {/* TODO: Добавить модальные окна для редактирования */}
+       {editingUser && (
+-        <div className="admin-modal">
+-          <div className="admin-modal__content">
++        <div className="admin-modal" onClick={() => !saving && setEditingUser(null)}>
++          <div className="admin-modal__content" onClick={(e) => e.stopPropagation()}>
+             <h3>Редактирование пользователя</h3>
+-            <p>ID: {editingUser.id}</p>
+-            <p>Имя: {editingUser.username}</p>
+-            <p>Email: {editingUser.email}</p>
+-            <button onClick={() => setEditingUser(null)}>Закрыть</button>
++            {modalError && <div className="admin-state admin-state--error">{modalError}</div>}
++            <div className="admin-modal__field">
++              <label>Имя пользователя</label>
++              <input
++                type="text"
++                value={editUsername}
++                onChange={(e) => setEditUsername(e.target.value)}
++                disabled={saving}
++              />
++            </div>
++            <div className="admin-modal__field">
++              <label>Email</label>
++              <input
++                type="email"
++                value={editEmail}
++                onChange={(e) => setEditEmail(e.target.value)}
++                disabled={saving}
++              />
++            </div>
++            <div className="admin-modal__actions">
++              <button
++                className="admin-modal__btn"
++                onClick={() => setEditingUser(null)}
++                disabled={saving}
++              >
++                Отмена
++              </button>
++              <button
++                className="admin-modal__btn admin-modal__btn--primary"
++                onClick={handleSaveUser}
++                disabled={saving}
++              >
++                {saving ? 'Сохранение…' : 'Сохранить'}
++              </button>
++            </div>
+           </div>
+         </div>
+       )}
+diff --git a/caesar.client/src/pages/Calendar/Calendar.tsx b/caesar.client/src/pages/Calendar/Calendar.tsx
+index 524e3b2..153a727 100644
+--- a/caesar.client/src/pages/Calendar/Calendar.tsx
++++ b/caesar.client/src/pages/Calendar/Calendar.tsx
+@@ -40,10 +40,10 @@ const normalizeTaskForCalendar = (raw: any): Task => {
+ };
+ 
+ interface CalendarProps {
+-  pageId?: number;
++  projectId?: number | null;
+ }
+ 
+-export const Calendar = ({ pageId = 1 }: CalendarProps) => {
++export const Calendar = ({ projectId }: CalendarProps) => {
+   const api = useApi();
+   const [tasks, setTasks] = useState<Task[]>([]);
+   const [loading, setLoading] = useState(true);
+@@ -51,18 +51,24 @@ export const Calendar = ({ pageId = 1 }: CalendarProps) => {
+   const [cursor, setCursor] = useState(() => new Date());
+ 
+   useEffect(() => {
++    if (!projectId) {
++      setTasks([]);
++      setLoading(false);
++      setError('');
++      return;
++    }
+     let active = true;
+     setLoading(true);
+-    
+-    api.getTasksByPage(pageId)
+-      .then((response: any) => { 
++
++    api.getTasksByProject(projectId)
++      .then((response: any) => {
+         if (active) {
+           const normalizedTasks = (response.data || []).map(normalizeTaskForCalendar);
+           setTasks(normalizedTasks);
+           setError('');
+         }
+       })
+-      .catch((e: any) => { 
++      .catch((e: any) => {
+         if (active) {
+           setError(e.message || 'Не удалось загрузить задачи');
+           setTasks([]);
+@@ -71,9 +77,9 @@ export const Calendar = ({ pageId = 1 }: CalendarProps) => {
+       .finally(() => {
+         if (active) setLoading(false);
+       });
+-      
++
+     return () => { active = false; };
+-  }, [api, pageId]);
++  }, [api, projectId]);
+ 
+   // Группируем задачи по дню дедлайна
+   const byDay = useMemo(() => {
+@@ -125,7 +131,8 @@ export const Calendar = ({ pageId = 1 }: CalendarProps) => {
+         </div>
+       </div>
+ 
+-      {loading && <div className="cal-loading">Загрузка задач...</div>}
++      {!projectId && <div className="cal-loading">Проект не выбран</div>}
++      {projectId && loading && <div className="cal-loading">Загрузка задач...</div>}
+       {error && <div className="cal-error">{error}</div>}
+ 
+       {!loading && !error && (
+diff --git a/caesar.client/src/pages/ProjectSetup/ProjectSetup.tsx b/caesar.client/src/pages/ProjectSetup/ProjectSetup.tsx
+index 0e16bb6..54171c7 100644
+--- a/caesar.client/src/pages/ProjectSetup/ProjectSetup.tsx
++++ b/caesar.client/src/pages/ProjectSetup/ProjectSetup.tsx
+@@ -4,7 +4,7 @@ import { Icon } from '../../components/Icon/Icon';
+ import './ProjectSetup.css';
+ 
+ interface ProjectSetupProps {
+-  onProjectCreated: (projectName: string, theme: string, pageId: number) => void;
++  onProjectCreated: (projectId: number, projectName: string, theme: string, pageId: number) => void;
+ }
+ 
+ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
+@@ -47,6 +47,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
+ 
+       // 3. Передаем ID страницы в родительский компонент
+       onProjectCreated(
++        projectId,
+         createdProject.name || projectName.trim(),
+         createdProject.theme || theme.trim() || 'Без темы',
+         pageId
+diff --git a/caesar.client/src/pages/Reports/Reports.tsx b/caesar.client/src/pages/Reports/Reports.tsx
+index 116f762..e636540 100644
+--- a/caesar.client/src/pages/Reports/Reports.tsx
++++ b/caesar.client/src/pages/Reports/Reports.tsx
+@@ -36,39 +36,45 @@ const normalizeTaskForReports = (raw: any): Task => {
+ };
+ 
+ interface ReportsProps {
+-  pageId?: number;
++  projectId?: number | null;
+ }
+ 
+-export const Reports = ({ pageId = 1 }: ReportsProps) => {
++export const Reports = ({ projectId }: ReportsProps) => {
+   const api = useApi();
+   const [tasks, setTasks] = useState<Task[]>([]);
+   const [error, setError] = useState('');
+   const [loading, setLoading] = useState(true);
+ 
+   useEffect(() => {
++    if (!projectId) {
++      setTasks([]);
++      setLoading(false);
++      setError('');
++      return;
++    }
+     let active = true;
+     setLoading(true);
+-    
+-    api.getTasksByPage(pageId)
+-      .then((response: any) => { 
++
++    api.getTasksByProject(projectId)
++      .then((response: any) => {
+         if (active) {
+           const normalizedTasks = (response.data || []).map(normalizeTaskForReports);
+           setTasks(normalizedTasks);
+           setError('');
+         }
+       })
+-      .catch((e: any) => { 
++      .catch((e: any) => {
+         if (active) {
+           setError(e.message || 'Не удалось загрузить задачи');
+           setTasks([]);
+         }
+       })
+-      .finally(() => { 
+-        if (active) setLoading(false); 
++      .finally(() => {
++        if (active) setLoading(false);
+       });
+-      
++
+     return () => { active = false; };
+-  }, [api, pageId]);
++  }, [api, projectId]);
+ 
+   const stats = useMemo(() => {
+     const byStatus: Record<TaskStatus, number> = { 
+@@ -113,10 +119,11 @@ export const Reports = ({ pageId = 1 }: ReportsProps) => {
+         <p className="rep-sub">Сводка по текущему проекту</p>
+       </div>
+ 
++      {!projectId && <div className="rep-loading">Проект не выбран</div>}
+       {error && <div className="rep-error">{error}</div>}
+-      {loading && <div className="rep-loading">Загрузка…</div>}
++      {projectId && loading && <div className="rep-loading">Загрузка…</div>}
+ 
+-      {!loading && !error && (
++      {projectId && !loading && !error && (
+         <>
+           <div className="rep-cards">
+             <div className="rep-card">
+diff --git a/caesar.client/src/pages/UserProfile/UserProfile.css b/caesar.client/src/pages/UserProfile/UserProfile.css
+index 4bb6230..80a0d62 100644
+--- a/caesar.client/src/pages/UserProfile/UserProfile.css
++++ b/caesar.client/src/pages/UserProfile/UserProfile.css
+@@ -148,3 +148,58 @@
+ }
+ .profile-edit__actions { display: flex; gap: 12px; margin-top: 8px; }
+ .profile-edit__actions .profile-btn { flex: 1; }
++
++.profile-telegram {
++  width: 100%;
++  margin-top: 20px;
++  padding: 16px;
++  border: 1px solid var(--border-color, #2a2a3a);
++  border-radius: 12px;
++  background: var(--surface-2, rgba(255,255,255,0.02));
++  text-align: left;
++}
++
++.profile-telegram__head {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  font-weight: 600;
++  margin-bottom: 8px;
++}
++
++.profile-telegram__hint {
++  font-size: 13px;
++  opacity: 0.75;
++  margin: 0 0 12px;
++  line-height: 1.4;
++}
++
++.profile-telegram__hint code {
++  padding: 1px 6px;
++  border-radius: 4px;
++  background: rgba(255,255,255,0.08);
++  font-family: monospace;
++}
++
++.profile-telegram__code-box {
++  display: flex;
++  align-items: center;
++  flex-wrap: wrap;
++  gap: 12px;
++}
++
++.profile-telegram__code {
++  font-family: monospace;
++  font-size: 26px;
++  font-weight: 700;
++  letter-spacing: 4px;
++  padding: 6px 14px;
++  border-radius: 8px;
++  background: rgba(99,102,241,0.15);
++  color: var(--accent, #818cf8);
++}
++
++.profile-telegram__ttl {
++  font-size: 12px;
++  opacity: 0.7;
++}
+diff --git a/caesar.client/src/pages/UserProfile/UserProfile.tsx b/caesar.client/src/pages/UserProfile/UserProfile.tsx
+index fa3ee13..77d3370 100644
+--- a/caesar.client/src/pages/UserProfile/UserProfile.tsx
++++ b/caesar.client/src/pages/UserProfile/UserProfile.tsx
+@@ -22,8 +22,31 @@ export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState('');
+   const [success, setSuccess] = useState('');
++  const [tgCode, setTgCode] = useState('');
++  const [tgExpiresAt, setTgExpiresAt] = useState<string | null>(null);
++  const [tgLoading, setTgLoading] = useState(false);
++  const [tgError, setTgError] = useState('');
+   const api = useApi();
+ 
++  const handleGetTelegramCode = async () => {
++    setTgError('');
++    try {
++      setTgLoading(true);
++      const res = await api.getTelegramLinkCode();
++      const data: any = res.data || res;
++      setTgCode(data.code || '');
++      setTgExpiresAt(data.expiresAtUtc || null);
++    } catch (err: any) {
++      setTgError(err.message || 'Не удалось получить код');
++    } finally {
++      setTgLoading(false);
++    }
++  };
++
++  const tgExpiresLabel = tgExpiresAt
++    ? new Date(tgExpiresAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
++    : null;
++
+   const handleSave = async () => {
+     setError('');
+     setSuccess('');
+@@ -72,6 +95,42 @@ export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
+               </div>
+             </div>
+ 
++            <div className="profile-telegram">
++              <div className="profile-telegram__head">
++                <Icon name="user" size={16} /> Подключение Telegram-бота
++              </div>
++              <p className="profile-telegram__hint">
++                Получите код и отправьте его боту командой <code>/link КОД</code>,
++                чтобы получать уведомления и управлять задачами из Telegram.
++              </p>
++
++              {tgError && <div className="profile-edit__error">{tgError}</div>}
++
++              {tgCode ? (
++                <div className="profile-telegram__code-box">
++                  <span className="profile-telegram__code">{tgCode}</span>
++                  {tgExpiresLabel && (
++                    <span className="profile-telegram__ttl">действует до {tgExpiresLabel}</span>
++                  )}
++                  <button
++                    className="profile-btn profile-btn--secondary"
++                    onClick={handleGetTelegramCode}
++                    disabled={tgLoading}
++                  >
++                    {tgLoading ? 'Обновление…' : 'Новый код'}
++                  </button>
++                </div>
++              ) : (
++                <button
++                  className="profile-btn profile-btn--primary"
++                  onClick={handleGetTelegramCode}
++                  disabled={tgLoading}
++                >
++                  {tgLoading ? 'Получение…' : 'Получить код'}
++                </button>
++              )}
++            </div>
++
+             <div className="profile-actions">
+               <button 
+                 className="profile-btn profile-btn--primary" 
+diff --git a/caesar.client/src/services/api.ts b/caesar.client/src/services/api.ts
+index f8817a8..2746ef6 100644
+--- a/caesar.client/src/services/api.ts
++++ b/caesar.client/src/services/api.ts
+@@ -77,6 +77,9 @@ export const createProjectPage = (data: { name: string; projectId: number }) =>
+ // ============================================================
+ export const getTasksByPage = (pageId: number) =>
+   apiClient.get(`/Tasks/page/${pageId}`);
++// Задача 4: все задачи проекта (по всем доскам) — для календаря и отчётов.
++export const getTasksByProject = (projectId: number) =>
++  apiClient.get(`/Tasks/project/${projectId}`);
+ export const createTask = (data: {
+   projectPageId: number;
+   title: string;
+@@ -97,6 +100,40 @@ export const createComment = (id: number, data: { text: string }) =>
+   apiClient.post(`/Tasks/${id}/comments`, data);
+ export const getComments = (id: number) => apiClient.get(`/Tasks/${id}/comments`);
+ 
++// ============================================================
++// MEMBERS & ROLES (роли по проектам — Задача 6)
++// ============================================================
++export const getRoles = () => apiClient.get('/roles');
++export const getProjectMembers = (projectId: number) =>
++  apiClient.get(`/projects/${projectId}/members`);
++export const addProjectMember = (
++  projectId: number,
++  data: { email: string; roleId: number; allowedPageId: number | null },
++) => apiClient.post(`/projects/${projectId}/members`, data);
++export const updateProjectMember = (
++  projectId: number,
++  userId: number,
++  data: { roleId?: number; allowedPageId?: number | null },
++) => apiClient.patch(`/projects/${projectId}/members/${userId}`, data);
++export const removeProjectMember = (projectId: number, userId: number) =>
++  apiClient.delete(`/projects/${projectId}/members/${userId}`);
++
++// ============================================================
++// ADMIN (блокировка пользователей — Задача 5)
++// ============================================================
++export const blockUser = (id: number) => apiClient.post(`/Users/${id}/block`);
++export const unblockUser = (id: number) => apiClient.post(`/Users/${id}/unblock`);
++
++// ============================================================
++// TELEGRAM (код подключения бота — Задача 7)
++// ============================================================
++export const getTelegramLinkCode = () => apiClient.post('/telegram/link-code');
++
++// ============================================================
++// AI (документированный ассистент — POST /api/ai/chat)
++// ============================================================
++export const aiChat = (message: string) => apiClient.post('/ai/chat', { message });
++
+ // ============================================================
+ // ЭКСПОРТ ВСЕХ МЕТОДОВ ЧЕРЕЗ ОБЪЕКТ api
+ // ============================================================
+@@ -119,6 +156,7 @@ export const api = {
+   createProjectPage,
+   // Tasks
+   getTasksByPage,
++  getTasksByProject,
+   createTask,
+   moveTask,
+   updateTask,
+@@ -126,4 +164,17 @@ export const api = {
+   getTaskHistory,
+   createComment,
+   getComments,
++  // Members & roles
++  getRoles,
++  getProjectMembers,
++  addProjectMember,
++  updateProjectMember,
++  removeProjectMember,
++  // Admin
++  blockUser,
++  unblockUser,
++  // Telegram
++  getTelegramLinkCode,
++  // AI
++  aiChat,
+ };
+\ No newline at end of file

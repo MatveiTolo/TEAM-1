@@ -25,6 +25,7 @@ export interface ApiService {
   
   // Tasks
   getTasksByPage: typeof apiService.getTasksByPage;
+  getTasksByProject: typeof apiService.getTasksByProject;
   createTask: typeof apiService.createTask;
   moveTask: typeof apiService.moveTask;
   updateTask: typeof apiService.updateTask;
@@ -32,6 +33,23 @@ export interface ApiService {
   getTaskHistory: typeof apiService.getTaskHistory;
   createComment: typeof apiService.createComment;
   getComments: typeof apiService.getComments;
+
+  // Members & roles
+  getRoles: typeof apiService.getRoles;
+  getProjectMembers: typeof apiService.getProjectMembers;
+  addProjectMember: typeof apiService.addProjectMember;
+  updateProjectMember: typeof apiService.updateProjectMember;
+  removeProjectMember: typeof apiService.removeProjectMember;
+
+  // Admin
+  blockUser: typeof apiService.blockUser;
+  unblockUser: typeof apiService.unblockUser;
+
+  // Telegram
+  getTelegramLinkCode: typeof apiService.getTelegramLinkCode;
+
+  // AI
+  aiChat: typeof apiService.aiChat;
 }
 
 const ApiContext = createContext<ApiService | null>(null);

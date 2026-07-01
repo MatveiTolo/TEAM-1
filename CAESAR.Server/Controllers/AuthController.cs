@@ -67,6 +67,8 @@ namespace CAESAR.Server.Controllers
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
             if (user == null) return BadRequest("Неверная почта или пароль");
+
+            if (user.IsBlocked) return StatusCode(403, "Аккаунт заблокирован. Обратитесь к администратору.");
             
             var passwordHasher = new PasswordHasher<User>();
             var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);

@@ -65,11 +65,23 @@ namespace CAESAR.Server.Controllers
                 {
                     Id = u.Id,
                     Username = u.UserName,
-                    Email = u.Email
+                    Email = u.Email,
+                    IsSuperAdmin = u.IsSuperAdmin,
+                    Status = u.IsBlocked ? "blocked" : "active",
+                    ProjectCount = _context.Members.Count(m => m.UserId == u.Id)
                 })
                 .ToListAsync();
 
             return Ok(users);
+        }
+
+        // Является ли текущий вызывающий супер-админом системы (для админ-панели).
+        private async Task<bool> IsCallerSuperAdminAsync()
+        {
+            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(idClaim, out var callerId)) return false;
+            var caller = await _context.Users.FindAsync(callerId);
+            return caller?.IsSuperAdmin == true;
         }
 
         [HttpGet("me")]
@@ -120,31 +132,59 @@ namespace CAESAR.Server.Controllers
         [HttpPatch("{id}")]
         public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
         {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
+            // Редактировать чужой аккаунт может только супер-админ (панель /admin).
+            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
 
-            user.UserName = dto.UserName ?? user.UserName;
-            user.Email = dto.Email ?? user.Email;
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+
+            if (!string.IsNullOrWhiteSpace(dto.UserName)) user.UserName = dto.UserName;
+            if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email;
 
             await _context.SaveChangesAsync();
-            return Ok(user);
+            return Ok(new { user.Id, Username = user.UserName, user.Email, Status = user.IsBlocked ? "blocked" : "active" });
+        }
+
+        // Блокировка / разблокировка пользователя (панель супер-админа).
+        [HttpPost("{id}/block")]
+        public async Task<IActionResult> BlockUser(int id)
+        {
+            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
+
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+            if (user.IsSuperAdmin) return BadRequest("Нельзя заблокировать супер-администратора.");
+
+            user.IsBlocked = true;
+            await _context.SaveChangesAsync();
+            return Ok(new { user.Id, Status = "blocked" });
+        }
+
+        [HttpPost("{id}/unblock")]
+        public async Task<IActionResult> UnblockUser(int id)
+        {
+            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
+
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return NotFound();
+
+            user.IsBlocked = false;
+            await _context.SaveChangesAsync();
+            return Ok(new { user.Id, Status = "active" });
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
+            if (!await IsCallerSuperAdminAsync()) return StatusCode(403, "Требуются права супер-администратора.");
+
             var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
+            if (user == null) return NotFound();
+            if (user.IsSuperAdmin) return BadRequest("Нельзя удалить супер-администратора.");
 
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
-            return Ok(user);
+            return Ok(new { message = "Пользователь удалён." });
         }
     }
 }

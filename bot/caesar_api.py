@@ -26,7 +26,7 @@ async def link_telegram(code: str, telegram_id: int) -> dict:
         return {
             "jwt": data["jwt"],
             "user_id": str(data["userId"]),
-            "full_name": data.get("fullName", ""),
+            "full_name": data.get("userName") or data.get("fullName", ""),
         }
 
 

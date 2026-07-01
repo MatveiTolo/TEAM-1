@@ -94,8 +94,13 @@ export const useTasks = (pageId?: number) => {
           }
         }
 
+        const targetPageId = taskData.page_id ?? pageId;
+        if (!targetPageId) {
+          throw new Error('Не выбрана доска для создания задачи');
+        }
+
         const payload = {
-          projectPageId: taskData.page_id ?? pageId ?? 1,
+          projectPageId: targetPageId,
           title: taskData.title,
           description: taskData.description ?? '',
           deadline: deadlineValue, // Отправляем в UTC формате (например, "2026-06-27T00:00:00.000Z")
@@ -131,27 +136,30 @@ export const useTasks = (pageId?: number) => {
   );
 
   const moveTask = useCallback(
-    async (taskId: number, newStatus: TaskStatus) => {
+    async (taskId: number, newStatus: TaskStatus, newPosition?: number) => {
       try {
-        const newPosition = tasks.filter(t => t.status === newStatus).length;
+        // Если позиция не задана явно — ставим в конец целевой колонки.
+        const targetCount = tasks.filter(t => t.status === newStatus && t.id !== taskId).length;
+        const position = typeof newPosition === 'number'
+          ? Math.max(0, Math.min(newPosition, targetCount))
+          : targetCount;
 
         const payload = {
           targetTaskStatus: STATUS_TO_INT[newStatus],
-          newPosition,
+          newPosition: position,
         };
 
-        console.log('Перемещение задачи:', { taskId, payload });
-
-        const response = await api.moveTask(taskId, payload);
-        const updated = normalizeTask(response.data);
-        setTasks(prev => prev.map(t => (t.id === taskId ? updated : t)));
-        return updated;
+        await api.moveTask(taskId, payload);
+        // Перечитываем — бэкенд пересчитал position по всем карточкам колонки.
+        await loadTasks();
       } catch (err: any) {
         console.error('Ошибка перемещения задачи:', err);
+        // Откатываем оптимистичное состояние к серверному.
+        await loadTasks();
         throw err;
       }
     },
-    [tasks]
+    [tasks, loadTasks]
   );
 
   useEffect(() => {

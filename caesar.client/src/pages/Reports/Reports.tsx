@@ -36,39 +36,45 @@ const normalizeTaskForReports = (raw: any): Task => {
 };
 
 interface ReportsProps {
-  pageId?: number;
+  projectId?: number | null;
 }
 
-export const Reports = ({ pageId = 1 }: ReportsProps) => {
+export const Reports = ({ projectId }: ReportsProps) => {
   const api = useApi();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!projectId) {
+      setTasks([]);
+      setLoading(false);
+      setError('');
+      return;
+    }
     let active = true;
     setLoading(true);
-    
-    api.getTasksByPage(pageId)
-      .then((response: any) => { 
+
+    api.getTasksByProject(projectId)
+      .then((response: any) => {
         if (active) {
           const normalizedTasks = (response.data || []).map(normalizeTaskForReports);
           setTasks(normalizedTasks);
           setError('');
         }
       })
-      .catch((e: any) => { 
+      .catch((e: any) => {
         if (active) {
           setError(e.message || 'Не удалось загрузить задачи');
           setTasks([]);
         }
       })
-      .finally(() => { 
-        if (active) setLoading(false); 
+      .finally(() => {
+        if (active) setLoading(false);
       });
-      
+
     return () => { active = false; };
-  }, [api, pageId]);
+  }, [api, projectId]);
 
   const stats = useMemo(() => {
     const byStatus: Record<TaskStatus, number> = { 
@@ -113,10 +119,11 @@ export const Reports = ({ pageId = 1 }: ReportsProps) => {
         <p className="rep-sub">Сводка по текущему проекту</p>
       </div>
 
+      {!projectId && <div className="rep-loading">Проект не выбран</div>}
       {error && <div className="rep-error">{error}</div>}
-      {loading && <div className="rep-loading">Загрузка…</div>}
+      {projectId && loading && <div className="rep-loading">Загрузка…</div>}
 
-      {!loading && !error && (
+      {projectId && !loading && !error && (
         <>
           <div className="rep-cards">
             <div className="rep-card">

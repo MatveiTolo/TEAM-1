@@ -139,3 +139,78 @@
 .admin-action:hover { background: var(--c-surface-hover); color: var(--c-text); }
 .admin-action--block:hover  { background: var(--c-danger-bg); color: var(--c-danger); border-color: var(--c-danger-border); }
 .admin-action--delete:hover { background: var(--c-danger-bg); color: var(--c-danger); border-color: var(--c-danger-border); }
+
+.admin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  padding: 20px;
+}
+
+.admin-modal__content {
+  width: 100%;
+  max-width: 420px;
+  padding: 24px;
+  border-radius: 14px;
+  background: var(--c-surface, #1a1a24);
+  border: 1px solid var(--c-border, #2a2a3a);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+.admin-modal__content h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.admin-modal__field {
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-modal__field label {
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.admin-modal__field input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border, #2a2a3a);
+  background: var(--c-bg, #12121a);
+  color: inherit;
+  font-size: 14px;
+}
+
+.admin-modal__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.admin-modal__btn {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border, #2a2a3a);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.admin-modal__btn--primary {
+  background: var(--c-accent, #6366f1);
+  border-color: var(--c-accent, #6366f1);
+  color: #fff;
+}
+
+.admin-modal__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

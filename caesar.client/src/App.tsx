@@ -27,60 +27,42 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [projectName, setProjectName] = useState('');
   const [projectTheme, setProjectTheme] = useState('');
-  const [selectedPageId, setSelectedPageId] = useState<number>(1);
+  // Задача 1/4: трекаем именно проект, а не только страницу №1.
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedPageId, setSelectedPageId] = useState<number | null>(null);
 
-  // Загрузка текущего пользователя при монтировании
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
-        console.log('Загрузка текущего пользователя...');
         const response = await api.getCurrentUser();
-        console.log('Пользователь загружен:', response.data);
         setCurrentUser(response.data);
       } catch (error) {
         console.error('Ошибка загрузки пользователя:', error);
       }
     };
-    
     const token = localStorage.getItem('caesar_token');
-    console.log('Токен при монтировании:', token ? 'присутствует' : 'отсутствует');
-    if (token) {
-      loadCurrentUser();
-    }
+    if (token) loadCurrentUser();
   }, [api]);
 
-  const handleLogin = (username: string) => {
-    console.log('handleLogin вызван с username:', username);
-    
-    // Проверяем, что токен сохранился
+  const handleLogin = () => {
     const token = localStorage.getItem('caesar_token');
-    console.log('Токен в handleLogin:', token ? 'присутствует' : 'отсутствует');
-    
     if (!token) {
-      console.warn('Токен отсутствует после входа!');
-      // Если токена нет, перенаправляем на логин
       setCurrentScreen('login');
       return;
     }
-    
-    // Загружаем данные пользователя
     api.getCurrentUser()
       .then((response: any) => {
-        console.log('Данные пользователя загружены:', response.data);
         setCurrentUser(response.data);
         setCurrentScreen('projects');
       })
-      .catch((error: any) => {
-        console.error('Ошибка загрузки пользователя после входа:', error);
-        // Даже при ошибке переходим на проекты
-        setCurrentScreen('projects');
-      });
+      .catch(() => setCurrentScreen('projects'));
   };
 
-  const handleProjectCreated = (name: string, theme: string, pageId: number) => {
+  const handleProjectCreated = (projectId: number, name: string, theme: string, pageId: number) => {
+    setSelectedProjectId(projectId);
+    setSelectedPageId(pageId);
     setProjectName(name);
     setProjectTheme(theme);
-    setSelectedPageId(pageId);
     setCurrentScreen('board');
   };
 
@@ -89,22 +71,21 @@ function App() {
     name?: string,
     theme?: string,
   ) => {
-    // Загружаем страницы выбранного проекта и открываем доску ИМЕННО его
-    // первой страницы — иначе доска всегда показывала задачи страницы №1
-    // (из-за чего задачи «перетекали» между всеми проектами).
+    // Открываем ИМЕННО выбранный проект: сохраняем его id и первую доску.
+    // Раньше без projectId контекст всегда сваливался на страницу №1.
+    setSelectedProjectId(projectId);
+    setProjectName(name || 'Проект');
+    setProjectTheme(theme || '');
     try {
       const response = await api.getProjectPages(projectId);
       const pages = response.data || [];
-      const firstPageId = pages.length > 0 ? pages[0].id : null;
-
-      if (firstPageId) {
-        setSelectedPageId(firstPageId);
-        setProjectName(name || 'Проект');
-        setProjectTheme(theme || '');
+      if (pages.length > 0) {
+        setSelectedPageId(pages[0].id);
         setCurrentScreen('board');
       } else {
-        // У проекта ещё нет ни одной доски — отправляем в мастер создания
-        setCurrentScreen('setup');
+        // Досок ещё нет — Board сам создаст первую.
+        setSelectedPageId(null);
+        setCurrentScreen('board');
       }
     } catch (error) {
       console.error('Ошибка загрузки страниц проекта:', error);
@@ -114,20 +95,16 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('caesar_token');
     setCurrentUser(null);
+    setSelectedProjectId(null);
+    setSelectedPageId(null);
     setCurrentScreen('landing');
   };
 
   const navigate = (page: string) => setCurrentScreen(page as Screen);
 
   // ============ Публичные экраны ============
-  if (currentScreen === 'landing') {
-    return <Landing onNavigate={navigate} />;
-  }
-
-  if (currentScreen === 'login') {
-    return <Login onLogin={handleLogin} onNavigate={navigate} />;
-  }
-
+  if (currentScreen === 'landing') return <Landing onNavigate={navigate} />;
+  if (currentScreen === 'login') return <Login onLogin={handleLogin} onNavigate={navigate} />;
   if (currentScreen === 'register') {
     return (
       <Register
@@ -137,7 +114,6 @@ function App() {
       />
     );
   }
-
   if (currentScreen === 'invite') {
     return (
       <Invite
@@ -146,16 +122,12 @@ function App() {
       />
     );
   }
-
   if (currentScreen === 'error') {
     return <Error code={404} onGoHome={() => setCurrentScreen('projects')} />;
   }
 
   // ============ Приложение (общий каркас AppShell) ============
-  const shellProps = {
-    onNavigate: navigate,
-    onLogout: handleLogout,
-  };
+  const shellProps = { onNavigate: navigate, onLogout: handleLogout };
 
   if (currentScreen === 'projects') {
     return (
@@ -185,23 +157,27 @@ function App() {
         subtitle={projectTheme}
         active="projects"
       >
-        <Board pageId={selectedPageId} />
+        <Board
+          projectId={selectedProjectId}
+          initialPageId={selectedPageId}
+          onActivePageChange={setSelectedPageId}
+        />
       </AppShell>
     );
   }
 
   if (currentScreen === 'calendar') {
     return (
-      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Календарь" active="calendar">
-        <Calendar pageId={selectedPageId} />
+      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Календарь" subtitle={projectName} active="calendar">
+        <Calendar projectId={selectedProjectId} />
       </AppShell>
     );
   }
 
   if (currentScreen === 'reports') {
     return (
-      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Отчёты" active="reports">
-        <Reports pageId={selectedPageId} />
+      <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Отчёты" subtitle={projectName} active="reports">
+        <Reports projectId={selectedProjectId} />
       </AppShell>
     );
   }
@@ -214,20 +190,14 @@ function App() {
       role: currentUser?.role || 'Участник',
       createdAt: currentUser?.createdAt
         ? new Date(currentUser.createdAt).toLocaleDateString('ru-RU', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
+            day: '2-digit', month: 'long', year: 'numeric',
           })
         : '—',
       projectsCount: currentUser?.projectsCount ?? 0,
     };
-
     return (
       <AppShell {...shellProps} onBack={() => setCurrentScreen('projects')} title="Профиль" active="profile">
-        <UserProfile
-          user={userForProfile}
-          onLogout={handleLogout}
-        />
+        <UserProfile user={userForProfile} onLogout={handleLogout} />
       </AppShell>
     );
   }

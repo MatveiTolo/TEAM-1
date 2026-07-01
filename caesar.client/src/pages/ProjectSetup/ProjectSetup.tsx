@@ -4,7 +4,7 @@ import { Icon } from '../../components/Icon/Icon';
 import './ProjectSetup.css';
 
 interface ProjectSetupProps {
-  onProjectCreated: (projectName: string, theme: string, pageId: number) => void;
+  onProjectCreated: (projectId: number, projectName: string, theme: string, pageId: number) => void;
 }
 
 export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
@@ -47,6 +47,7 @@ export const ProjectSetup = ({ onProjectCreated }: ProjectSetupProps) => {
 
       // 3. Передаем ID страницы в родительский компонент
       onProjectCreated(
+        projectId,
         createdProject.name || projectName.trim(),
         createdProject.theme || theme.trim() || 'Без темы',
         pageId

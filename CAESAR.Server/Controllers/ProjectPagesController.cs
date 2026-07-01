@@ -32,7 +32,8 @@ namespace CAESAR.Server.Controllers
             var member = await _context.Members
                 .FirstOrDefaultAsync(m => m.ProjectId == dto.ProjectId && m.UserId == currentUserId);
 
-            if (member == null || (member.Role != (int)UserRole.GlobalAdmin && member.Role != (int)UserRole.PageAdmin)) return StatusCode(403, "bruh");//Forbid();
+            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта.");
+            if (!Services.ProjectPermissions.CanCreatePage(member)) return StatusCode(403, "Только администратор может создавать доски.");
 
             var newPage = new ProjectPage
             {

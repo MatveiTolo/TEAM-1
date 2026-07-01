@@ -77,6 +77,9 @@ export const createProjectPage = (data: { name: string; projectId: number }) =>
 // ============================================================
 export const getTasksByPage = (pageId: number) =>
   apiClient.get(`/Tasks/page/${pageId}`);
+// Задача 4: все задачи проекта (по всем доскам) — для календаря и отчётов.
+export const getTasksByProject = (projectId: number) =>
+  apiClient.get(`/Tasks/project/${projectId}`);
 export const createTask = (data: {
   projectPageId: number;
   title: string;
@@ -96,6 +99,40 @@ export const getTaskHistory = (id: number) => apiClient.get(`/Tasks/${id}/histor
 export const createComment = (id: number, data: { text: string }) =>
   apiClient.post(`/Tasks/${id}/comments`, data);
 export const getComments = (id: number) => apiClient.get(`/Tasks/${id}/comments`);
+
+// ============================================================
+// MEMBERS & ROLES (роли по проектам — Задача 6)
+// ============================================================
+export const getRoles = () => apiClient.get('/roles');
+export const getProjectMembers = (projectId: number) =>
+  apiClient.get(`/projects/${projectId}/members`);
+export const addProjectMember = (
+  projectId: number,
+  data: { email: string; roleId: number; allowedPageId: number | null },
+) => apiClient.post(`/projects/${projectId}/members`, data);
+export const updateProjectMember = (
+  projectId: number,
+  userId: number,
+  data: { roleId?: number; allowedPageId?: number | null },
+) => apiClient.patch(`/projects/${projectId}/members/${userId}`, data);
+export const removeProjectMember = (projectId: number, userId: number) =>
+  apiClient.delete(`/projects/${projectId}/members/${userId}`);
+
+// ============================================================
+// ADMIN (блокировка пользователей — Задача 5)
+// ============================================================
+export const blockUser = (id: number) => apiClient.post(`/Users/${id}/block`);
+export const unblockUser = (id: number) => apiClient.post(`/Users/${id}/unblock`);
+
+// ============================================================
+// TELEGRAM (код подключения бота — Задача 7)
+// ============================================================
+export const getTelegramLinkCode = () => apiClient.post('/telegram/link-code');
+
+// ============================================================
+// AI (документированный ассистент — POST /api/ai/chat)
+// ============================================================
+export const aiChat = (message: string) => apiClient.post('/ai/chat', { message });
 
 // ============================================================
 // ЭКСПОРТ ВСЕХ МЕТОДОВ ЧЕРЕЗ ОБЪЕКТ api
@@ -119,6 +156,7 @@ export const api = {
   createProjectPage,
   // Tasks
   getTasksByPage,
+  getTasksByProject,
   createTask,
   moveTask,
   updateTask,
@@ -126,4 +164,17 @@ export const api = {
   getTaskHistory,
   createComment,
   getComments,
+  // Members & roles
+  getRoles,
+  getProjectMembers,
+  addProjectMember,
+  updateProjectMember,
+  removeProjectMember,
+  // Admin
+  blockUser,
+  unblockUser,
+  // Telegram
+  getTelegramLinkCode,
+  // AI
+  aiChat,
 };

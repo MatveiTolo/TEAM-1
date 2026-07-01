@@ -21,6 +21,7 @@ namespace CAESAR.Server
             // Add services to the container.
 
             builder.Services.AddControllers();
+            builder.Services.AddHttpClient();
             builder.Services.AddOpenApi();
 
             // CORS для дев-окружения (Vite-клиент на localhost)

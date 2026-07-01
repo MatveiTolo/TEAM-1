@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using CAESAR.Server.Services;
 using CAESAR.Server.Data;
@@ -23,21 +23,25 @@ namespace CAESAR.Server.Controllers
             _notificationService = notificationService;
         }
 
+        private int CurrentUserId()
+        {
+            var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return int.TryParse(sub, out var id) ? id : 0;
+        }
+
+        // Задачи одной страницы (доски)
         [HttpGet("page/{pageId}")]
         public async Task<IActionResult> GetTasksByPage(int pageId)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
-            int currentUserId = int.Parse(userIdClaim);
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
 
             var page = await _context.ProjectPages.FindAsync(pageId);
-
             if (page == null) return NotFound("Запрашиваемая страница не найдена");
 
-            var isMember = await _context.Members.AnyAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
-
-            if (!isMember) return Forbid();
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+            if (member == null) return Forbid();
+            if (!ProjectPermissions.CanAccessPage(member, pageId)) return StatusCode(403, "Нет доступа к этой странице.");
 
             var tasks = await _context.BoardTasks
                 .Where(t => t.ProjectPageId == pageId)
@@ -47,31 +51,53 @@ namespace CAESAR.Server.Controllers
             return Ok(tasks);
         }
 
+        // Задача 4: все задачи проекта (по всем его страницам) — для календаря и отчётов.
+        // Раньше эти экраны грузили только страницу №1, из-за чего инфо проекта «пропадала».
+        [HttpGet("project/{projectId}")]
+        public async Task<IActionResult> GetTasksByProject(int projectId)
+        {
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == projectId && m.UserId == currentUserId);
+            if (member == null) return Forbid();
+
+            var pageIdsQuery = _context.ProjectPages.Where(p => p.ProjectId == projectId);
+
+            // Участник с ограничением по странице видит только её.
+            if (ProjectPermissions.RoleOf(member) != UserRole.GlobalAdmin && member.AllowedPageId is int allowed)
+                pageIdsQuery = pageIdsQuery.Where(p => p.Id == allowed);
+
+            var pageIds = await pageIdsQuery.Select(p => p.Id).ToListAsync();
+
+            var tasks = await _context.BoardTasks
+                .Where(t => pageIds.Contains(t.ProjectPageId))
+                .OrderBy(t => t.ProjectPageId).ThenBy(t => t.Position)
+                .ToListAsync();
+
+            return Ok(tasks);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateTask(CreateTaskDto dto)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
-            int currentUserId = int.Parse(userIdClaim);
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
 
             if (string.IsNullOrEmpty(dto.Title)) return BadRequest("Название задачи не может быть пустым");
 
             var page = await _context.ProjectPages.FindAsync(dto.ProjectPageId);
-
             if (page == null) return NotFound("Запрашиваемая страница не найдена");
 
-            var Member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта.");
+            if (!ProjectPermissions.CanAccessPage(member, dto.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
+            if (!ProjectPermissions.CanCreateTask(member)) return StatusCode(403, "Ваша роль не позволяет создавать задачи.");
 
-            if (Member == null) return StatusCode(403, "Bruh");//Forbid();
-
-            if (Member.Role == 3 || Member.Role == 5) return BadRequest("У вас нет прав для создания задачи на этой странице"); //Forbid();
-
-            /// Сдвиг задач
+            // Сдвигаем существующие задачи в колонке «Преподготовка» вниз — новая встаёт наверх.
             var existingTasks = await _context.BoardTasks
-                .Where(t => t.ProjectPageId == dto.ProjectPageId && (int)t.Status == 1)
+                .Where(t => t.ProjectPageId == dto.ProjectPageId && t.Status == BoardTaskStatus.Preparaion)
                 .ToListAsync();
-
             foreach (var task in existingTasks) task.Position += 1;
 
             var newTask = new BoardTask
@@ -80,11 +106,24 @@ namespace CAESAR.Server.Controllers
                 Title = dto.Title,
                 Description = dto.Description,
                 Status = BoardTaskStatus.Preparaion,
+                Position = 0,
                 Deadline = dto.Deadline,
                 CreatedById = currentUserId
             };
 
             _context.BoardTasks.Add(newTask);
+            await _context.SaveChangesAsync();
+
+            _context.TaskHistories.Add(new BoardTaskHistory
+            {
+                TaskId = newTask.Id,
+                UserId = currentUserId,
+                ActionType = "Создана",
+                StatusBefore = BoardTaskStatus.Preparaion,
+                StatusAfter = BoardTaskStatus.Preparaion,
+                Details = "Задача создана.",
+                CreatedAt = DateTime.UtcNow
+            });
             await _context.SaveChangesAsync();
 
             return Ok(newTask);
@@ -93,48 +132,29 @@ namespace CAESAR.Server.Controllers
         [HttpPut("{id}/move")]
         public async Task<IActionResult> MoveTask(int id, MoveTaskDto dto)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
-            int currentUserId = int.Parse(userIdClaim);
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
 
             var task = await _context.BoardTasks.FindAsync(id);
-
             if (task == null) return NotFound("Запрашиваемая задача не найдена");
 
             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
-
             if (page == null) return NotFound("Запрашиваемая страница не найдена");
 
-            var Member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта.");
+            if (!ProjectPermissions.CanAccessPage(member, task.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
 
-            if (Member == null) return StatusCode(403, "Bruh");//Forbid();
-
-            // Валидвция требований
-
-            int statusDiff = Math.Abs((int)dto.targetTaskStatus - (int)task.Status);
-
-            if (statusDiff != 1 && task.Status != dto.targetTaskStatus) return BadRequest("Невозможно переместить задачу в указанный статус");
-
-            if (Member.Role == 4)
-            {
-                if (dto.targetTaskStatus == BoardTaskStatus.Done)
-                {
-                    return BadRequest("У вас нет прав для перемещения задачи в статус 'Выполнено'");
-                }
-                if (task.Status == BoardTaskStatus.Preparaion && dto.targetTaskStatus == BoardTaskStatus.Execution)
-                {
-                    return BadRequest("У вас нет прав для перемещения задачи");
-                }
-            }
+            // Единая валидация перемещения (соседство + правила роли).
+            var moveError = ProjectPermissions.ValidateMove(member, task.Status, dto.targetTaskStatus);
+            if (moveError != null) return BadRequest(moveError);
 
             int oldPos = task.Position;
             var oldStatus = task.Status;
 
             if (task.Status != dto.targetTaskStatus)
             {
-                // Перемещение задачи в другой статус
-
+                // Перемещение в другую колонку: закрываем «дыру» в старой, раздвигаем целевую.
                 var tasksToMoveUp = await _context.BoardTasks
                     .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > oldPos)
                     .ToListAsync();
@@ -146,36 +166,32 @@ namespace CAESAR.Server.Controllers
                 foreach (var t in tasksToMoveDown) t.Position++;
 
                 task.Status = dto.targetTaskStatus;
-
             }
             else
             {
-                // Перемещение задачи в пределах одного статуса
-
+                // Реордер внутри одной колонки (Задача 2).
                 if (oldPos < dto.NewPosition)
                 {
-                    var tasksBetween = await _context.BoardTasks
+                    var between = await _context.BoardTasks
                         .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > oldPos && t.Position <= dto.NewPosition)
                         .ToListAsync();
-                    foreach (var t in tasksBetween) t.Position--;
+                    foreach (var t in between) t.Position--;
                 }
                 else
                 {
-                    var tasksBetween = await _context.BoardTasks
+                    var between = await _context.BoardTasks
                         .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position < oldPos && t.Position >= dto.NewPosition)
                         .ToListAsync();
-                    foreach (var t in tasksBetween) t.Position++;
+                    foreach (var t in between) t.Position++;
                 }
             }
 
             task.Position = dto.NewPosition;
             task.UpdatedAt = DateTime.UtcNow;
 
-            // Запись истории изменений
-
             if (oldPos != dto.NewPosition || oldStatus != dto.targetTaskStatus)
             {
-                var history = new BoardTaskHistory
+                _context.TaskHistories.Add(new BoardTaskHistory
                 {
                     TaskId = task.Id,
                     UserId = currentUserId,
@@ -186,16 +202,13 @@ namespace CAESAR.Server.Controllers
                         ? $"Перенесена из колонки '{GetStatusName(oldStatus)}' в '{GetStatusName(dto.targetTaskStatus)}' на позицию {dto.NewPosition}."
                         : $"Перемещена внутри колонки '{GetStatusName(task.Status)}' с позиции {oldPos} на {dto.NewPosition}.",
                     CreatedAt = DateTime.UtcNow
-                };
-
-                _context.TaskHistories.Add(history);
+                });
             }
 
             await _context.SaveChangesAsync();
 
             if (oldStatus != dto.targetTaskStatus)
             {
-                // Запускаем отправку в фоновом потоке, чтобы не тормозить ответ пользователю на доске
                 _ = Task.Run(async () =>
                 {
                     try
@@ -204,9 +217,6 @@ namespace CAESAR.Server.Controllers
                                              $"Задача #{task.Id} \"{task.Title}\" изменила статус!\n" +
                                              $"Новый статус: *{GetStatusName(dto.targetTaskStatus)}*.\n" +
                                              $"Пожалуйста, проверьте изменения на доске.";
-
-                        // Вызываем наш оркестрирующий сервис. Он сам найдет мессенджеры автора задачи (task.CreatedById)
-                        // и через Фабрику сделает рассылку во все подключенные каналы связи параллельно.
                         await _notificationService.SendToUserAsync(task.CreatedById, messageText);
                     }
                     catch (Exception ex)
@@ -222,10 +232,8 @@ namespace CAESAR.Server.Controllers
         [HttpPatch("{id}")]
         public async Task<IActionResult> UpdateTask(int id, UpdateTaskDto dto)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
-            int currentUserId = int.Parse(userIdClaim);
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
 
             var task = await _context.BoardTasks.FindAsync(id);
             if (task == null) return NotFound("Запрашиваемая задача не найдена");
@@ -233,11 +241,10 @@ namespace CAESAR.Server.Controllers
             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
             if (page == null) return NotFound("Запрашиваемая страница не найдена");
 
-            var member = await _context.Members
-                .FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
-
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
             if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
-            if (member.Role == (int)UserRole.Viewer) return StatusCode(403, "Наблюдатели не могут редактировать задачи");
+            if (!ProjectPermissions.CanAccessPage(member, task.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
+            if (!ProjectPermissions.CanEditTask(member)) return StatusCode(403, "Наблюдатели не могут редактировать задачи");
 
             var changes = new List<string>();
 
@@ -246,34 +253,26 @@ namespace CAESAR.Server.Controllers
                 changes.Add($"название → '{dto.Title}'");
                 task.Title = dto.Title;
             }
-
             if (dto.Description != null && dto.Description != task.Description)
             {
                 changes.Add("обновлено описание");
                 task.Description = dto.Description;
             }
-
             if (dto.Deadline != task.Deadline)
             {
-                changes.Add(dto.Deadline.HasValue
-                    ? $"дедлайн → {dto.Deadline.Value:dd.MM.yyyy}"
-                    : "дедлайн снят");
+                changes.Add(dto.Deadline.HasValue ? $"дедлайн → {dto.Deadline.Value:dd.MM.yyyy}" : "дедлайн снят");
                 task.Deadline = dto.Deadline;
             }
-
             if (dto.AssignedToId != task.AssignedToId)
             {
-                changes.Add(dto.AssignedToId.HasValue
-                    ? $"назначен исполнитель #{dto.AssignedToId}"
-                    : "исполнитель снят");
+                changes.Add(dto.AssignedToId.HasValue ? $"назначен исполнитель #{dto.AssignedToId}" : "исполнитель снят");
                 task.AssignedToId = dto.AssignedToId;
             }
 
             if (changes.Count == 0) return Ok(task);
 
             task.UpdatedAt = DateTime.UtcNow;
-
-            var history = new BoardTaskHistory
+            _context.TaskHistories.Add(new BoardTaskHistory
             {
                 TaskId = task.Id,
                 UserId = currentUserId,
@@ -282,11 +281,9 @@ namespace CAESAR.Server.Controllers
                 StatusAfter = task.Status,
                 Details = "Задача отредактирована: " + string.Join(", ", changes) + ".",
                 CreatedAt = DateTime.UtcNow
-            };
-            _context.TaskHistories.Add(history);
+            });
 
             await _context.SaveChangesAsync();
-
             return Ok(task);
         }
 
@@ -318,10 +315,8 @@ namespace CAESAR.Server.Controllers
         [HttpPost("{id}/comments")]
         public async Task<IActionResult> AddComment(int id, CreateCommentDto dto)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized("Не удалось определить пользователя из токена.");
-            int currentUserId = int.Parse(userIdClaim);
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
 
             if (string.IsNullOrWhiteSpace(dto.Text)) return BadRequest("Текст комментария не может быть пустым");
 
@@ -329,11 +324,10 @@ namespace CAESAR.Server.Controllers
             if (task == null) return NotFound("Задача не найдена");
 
             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
-            var member = await _context.Members
-                .FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
 
             if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
-            if (member.Role == (int)UserRole.Viewer) return StatusCode(403, "Наблюдатели не могут оставлять комментарии");
+            if (!ProjectPermissions.CanComment(member)) return StatusCode(403, "Наблюдатели не могут оставлять комментарии");
 
             var nextComment = new Comment
             {
@@ -344,22 +338,20 @@ namespace CAESAR.Server.Controllers
             };
             _context.Comments.Add(nextComment);
 
-            var history = new BoardTaskHistory
+            _context.TaskHistories.Add(new BoardTaskHistory
             {
                 TaskId = task.Id,
                 UserId = currentUserId,
                 ActionType = "Комментарий",
-                StatusBefore = task.Status, // Статус не менялся пишем текущий
+                StatusBefore = task.Status,
                 StatusAfter = task.Status,
                 Details = "Добавлен новый комментарий к задаче.",
                 CreatedAt = DateTime.UtcNow
-            };
-            _context.TaskHistories.Add(history);
+            });
 
             await _context.SaveChangesAsync();
 
             var user = await _context.Users.FindAsync(currentUserId);
-
             var responeDto = new CommentDto
             {
                 Id = nextComment.Id,
@@ -376,15 +368,12 @@ namespace CAESAR.Server.Controllers
         public async Task<IActionResult> GetTaskComments(int id)
         {
             var taskExists = await _context.BoardTasks.AnyAsync(t => t.Id == id);
-            if (!taskExists)
-            {
-                return NotFound("Задача не найдена.");
-            }
+            if (!taskExists) return NotFound("Задача не найдена.");
 
             var comments = await _context.Comments
                 .Include(c => c.User)
                 .Where(c => c.TaskId == id)
-                .OrderBy(c => c.CreatedAt) // Старые комментарии показываем сверху | новые внизу (как в чате)
+                .OrderBy(c => c.CreatedAt)
                 .Select(c => new CommentDto
                 {
                     Id = c.Id,
@@ -401,44 +390,37 @@ namespace CAESAR.Server.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteBoardTask(int id)
         {
-            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            int currentUserId = int.Parse(userIdClaim!);
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
 
             var task = await _context.BoardTasks.FindAsync(id);
             if (task == null) return NotFound("Задача не найдена");
 
             var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
-            var memeber = await _context.Members
-                .FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page!.ProjectId && m.UserId == currentUserId);
 
-            if (memeber == null) return NotFound("Пользователь не найден");
-            if (memeber.Role == (int)UserRole.Developer || memeber.Role == (int)UserRole.Tester || memeber.Role == (int)UserRole.Viewer) return Forbid("Ваша роль не позволяет этого сделать");
+            if (member == null) return StatusCode(403, "Вы не являетесь участником проекта");
+            if (!ProjectPermissions.CanAccessPage(member, task.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
+            if (!ProjectPermissions.CanDeleteTask(member)) return StatusCode(403, "Ваша роль не позволяет удалять задачи.");
 
             var tasksToMoveUp = await _context.BoardTasks
-                .Where(t => t.ProjectPageId == task.ProjectPageId
-                && t.Status == task.Status
-                && t.Position > task.Position).ToListAsync();
-
+                .Where(t => t.ProjectPageId == task.ProjectPageId && t.Status == task.Status && t.Position > task.Position)
+                .ToListAsync();
             foreach (var t in tasksToMoveUp) t.Position--;
 
             _context.BoardTasks.Remove(task);
             await _context.SaveChangesAsync();
 
-            return Ok(new {Meesage = $"Задача {id} успешно удалена из системы"});
+            return Ok(new { message = $"Задача {id} успешно удалена из системы" });
         }
 
-
-        // Может привести к утечке памяти? уточнить.
-        private static string GetStatusName(BoardTaskStatus status)
+        private static string GetStatusName(BoardTaskStatus status) => status switch
         {
-            return status switch
-            {
-                BoardTaskStatus.Preparaion => "Преподготовка",
-                BoardTaskStatus.Execution => "Выполнение",
-                BoardTaskStatus.Testing => "Тестирование",
-                BoardTaskStatus.Done => "Готово",
-                _ => "Неизвестно"
-            };
-        }
+            BoardTaskStatus.Preparaion => "Преподготовка",
+            BoardTaskStatus.Execution => "Выполнение",
+            BoardTaskStatus.Testing => "Тестирование",
+            BoardTaskStatus.Done => "Готово",
+            _ => "Неизвестно"
+        };
     }
 }

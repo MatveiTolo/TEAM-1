@@ -31,6 +31,36 @@ export const Admin = () => {
   const [error, setError] = useState('');
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editingProject, setEditingProject] = useState<AdminProject | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [modalError, setModalError] = useState('');
+
+  const openEditUser = (user: AdminUser) => {
+    setEditingUser(user);
+    setEditUsername(user.username);
+    setEditEmail(user.email);
+    setModalError('');
+  };
+
+  const handleSaveUser = async () => {
+    if (!editingUser) return;
+    if (!editUsername.trim() || !editEmail.trim()) {
+      setModalError('Все поля обязательны');
+      return;
+    }
+    try {
+      setSaving(true);
+      setModalError('');
+      await api.updateUser(editingUser.id, { userName: editUsername.trim(), email: editEmail.trim() });
+      setEditingUser(null);
+      await load();
+    } catch (err: any) {
+      setModalError(err.message || 'Не удалось сохранить');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -73,28 +103,23 @@ export const Admin = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleBlockUser = async (_userId: number) => {
-    if (!confirm('Вы уверены, что хотите заблокировать этого пользователя?')) return;
+  const handleToggleBlock = async (user: AdminUser) => {
+    const willBlock = user.status !== 'blocked';
+    const msg = willBlock
+      ? 'Заблокировать этого пользователя? Он не сможет войти в систему.'
+      : 'Разблокировать этого пользователя?';
+    if (!confirm(msg)) return;
     try {
-      // TODO: Добавить метод блокировки пользователя в API
-      // await api.blockUser(userId);
+      if (willBlock) await api.blockUser(user.id);
+      else await api.unblockUser(user.id);
       await load();
-    } catch (err) {
-      console.error('Ошибка блокировки пользователя:', err);
-      alert('Не удалось заблокировать пользователя');
+    } catch (err: any) {
+      alert(err.message || 'Операция не выполнена');
     }
   };
 
   const handleDeleteProject = async (_projectId: number) => {
-    if (!confirm('Вы уверены, что хотите удалить этот проект?')) return;
-    try {
-      // TODO: Добавить метод удаления проекта в API
-      // await api.deleteProject(projectId);
-      await load();
-    } catch (err) {
-      console.error('Ошибка удаления проекта:', err);
-      alert('Не удалось удалить проект');
-    }
+    alert('Удаление проектов пока не поддерживается сервером.');
   };
 
   const totalTasks = projects.reduce((sum, p) => sum + (p.taskCount ?? 0), 0);
@@ -164,19 +189,17 @@ export const Admin = () => {
                       <button 
                         className="admin-action" 
                         title="Редактировать"
-                        onClick={() => setEditingUser(user)}
+                        onClick={() => openEditUser(user)}
                       >
                         <Icon name="edit" size={16} />
                       </button>
-                      {user.status !== 'blocked' && (
-                        <button 
-                          className="admin-action admin-action--block" 
-                          title="Заблокировать"
-                          onClick={() => handleBlockUser(user.id)}
-                        >
-                          <Icon name="ban" size={16} />
-                        </button>
-                      )}
+                      <button 
+                        className={`admin-action ${user.status === 'blocked' ? '' : 'admin-action--block'}`}
+                        title={user.status === 'blocked' ? 'Разблокировать' : 'Заблокировать'}
+                        onClick={() => handleToggleBlock(user)}
+                      >
+                        <Icon name="ban" size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -230,15 +253,45 @@ export const Admin = () => {
         </div>
       )}
 
-      {/* TODO: Добавить модальные окна для редактирования */}
       {editingUser && (
-        <div className="admin-modal">
-          <div className="admin-modal__content">
+        <div className="admin-modal" onClick={() => !saving && setEditingUser(null)}>
+          <div className="admin-modal__content" onClick={(e) => e.stopPropagation()}>
             <h3>Редактирование пользователя</h3>
-            <p>ID: {editingUser.id}</p>
-            <p>Имя: {editingUser.username}</p>
-            <p>Email: {editingUser.email}</p>
-            <button onClick={() => setEditingUser(null)}>Закрыть</button>
+            {modalError && <div className="admin-state admin-state--error">{modalError}</div>}
+            <div className="admin-modal__field">
+              <label>Имя пользователя</label>
+              <input
+                type="text"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                disabled={saving}
+              />
+            </div>
+            <div className="admin-modal__field">
+              <label>Email</label>
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                disabled={saving}
+              />
+            </div>
+            <div className="admin-modal__actions">
+              <button
+                className="admin-modal__btn"
+                onClick={() => setEditingUser(null)}
+                disabled={saving}
+              >
+                Отмена
+              </button>
+              <button
+                className="admin-modal__btn admin-modal__btn--primary"
+                onClick={handleSaveUser}
+                disabled={saving}
+              >
+                {saving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -22,7 +22,30 @@ export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [tgCode, setTgCode] = useState('');
+  const [tgExpiresAt, setTgExpiresAt] = useState<string | null>(null);
+  const [tgLoading, setTgLoading] = useState(false);
+  const [tgError, setTgError] = useState('');
   const api = useApi();
+
+  const handleGetTelegramCode = async () => {
+    setTgError('');
+    try {
+      setTgLoading(true);
+      const res = await api.getTelegramLinkCode();
+      const data: any = res.data || res;
+      setTgCode(data.code || '');
+      setTgExpiresAt(data.expiresAtUtc || null);
+    } catch (err: any) {
+      setTgError(err.message || 'Не удалось получить код');
+    } finally {
+      setTgLoading(false);
+    }
+  };
+
+  const tgExpiresLabel = tgExpiresAt
+    ? new Date(tgExpiresAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    : null;
 
   const handleSave = async () => {
     setError('');
@@ -70,6 +93,42 @@ export const UserProfile = ({ user, onLogout }: UserProfileProps) => {
                 <span className="profile-info__label">Проектов</span>
                 <span className="profile-info__value">{user.projectsCount}</span>
               </div>
+            </div>
+
+            <div className="profile-telegram">
+              <div className="profile-telegram__head">
+                <Icon name="user" size={16} /> Подключение Telegram-бота
+              </div>
+              <p className="profile-telegram__hint">
+                Получите код и отправьте его боту командой <code>/link КОД</code>,
+                чтобы получать уведомления и управлять задачами из Telegram.
+              </p>
+
+              {tgError && <div className="profile-edit__error">{tgError}</div>}
+
+              {tgCode ? (
+                <div className="profile-telegram__code-box">
+                  <span className="profile-telegram__code">{tgCode}</span>
+                  {tgExpiresLabel && (
+                    <span className="profile-telegram__ttl">действует до {tgExpiresLabel}</span>
+                  )}
+                  <button
+                    className="profile-btn profile-btn--secondary"
+                    onClick={handleGetTelegramCode}
+                    disabled={tgLoading}
+                  >
+                    {tgLoading ? 'Обновление…' : 'Новый код'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="profile-btn profile-btn--primary"
+                  onClick={handleGetTelegramCode}
+                  disabled={tgLoading}
+                >
+                  {tgLoading ? 'Получение…' : 'Получить код'}
+                </button>
+              )}
             </div>
 
             <div className="profile-actions">
