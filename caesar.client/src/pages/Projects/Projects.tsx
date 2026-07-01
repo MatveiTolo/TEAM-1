@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApi } from '../../context/ApiContext';
 import { Icon } from '../../components/Icon/Icon';
+import { MembersModal } from '../../components/Members/MembersModal';
 import './Projects.css';
 
 interface Project {
@@ -24,6 +25,7 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [membersProject, setMembersProject] = useState<Project | null>(null);
   const api = useApi();
 
   const loadProjects = useCallback(async () => {
@@ -134,12 +136,27 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
                   <span><Icon name="tasks" size={14} /> {done}/{total} задач</span>
                 </div>
                 <div className="project-card__footer">
+                  <button
+                    className="project-card__members-btn"
+                    onClick={(e) => { e.stopPropagation(); setMembersProject(project); }}
+                  >
+                    <Icon name="user" size={14} /> Участники
+                  </button>
                   <span className="project-card__enter">Перейти →</span>
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {membersProject && (
+        <MembersModal
+          projectId={membersProject.id}
+          projectName={membersProject.name}
+          isOpen={!!membersProject}
+          onClose={() => setMembersProject(null)}
+        />
       )}
     </div>
   );

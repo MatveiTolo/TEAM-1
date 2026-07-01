@@ -13,30 +13,60 @@ interface TaskDetailsModalProps {
   onTaskDeleted?: (taskId: number) => void;
 }
 
+// Форма истории после нормализации ответа бэкенда (TaskHistoryDto, camelCase).
 interface HistoryItem {
-  user_name: string;
-  action: string;
-  old_value?: string;
-  new_value?: string;
-  created_at: string;
-}
-
-interface Comment {
   id: number;
-  user_name: string;
-  text: string;
-  created_at: string;
+  username: string;
+  actionType: string;
+  statusBeforeName: string;
+  statusAfterName: string;
+  details: string;
+  createdAt: string;
 }
 
-export const TaskDetailsModal = ({ 
-  task, 
-  isOpen, 
-  onClose, 
+// Форма комментария (CommentDto, camelCase).
+interface CommentItem {
+  id: number;
+  username: string;
+  text: string;
+  createdAt: string;
+}
+
+// Бэкенд по умолчанию сериализует в camelCase. Раньше компонент читал snake_case
+// (user_name/action/created_at) — из-за этого история и комментарии были «пустыми».
+const normalizeHistory = (raw: any): HistoryItem => ({
+  id: raw.id ?? 0,
+  username: raw.username ?? raw.user_name ?? 'Система',
+  actionType: raw.actionType ?? raw.action ?? '',
+  statusBeforeName: raw.statusBeforeName ?? raw.status_before_name ?? '',
+  statusAfterName: raw.statusAfterName ?? raw.status_after_name ?? '',
+  details: raw.details ?? '',
+  createdAt: raw.createdAt ?? raw.created_at ?? '',
+});
+
+const normalizeComment = (raw: any): CommentItem => ({
+  id: raw.id ?? 0,
+  username: raw.username ?? raw.user_name ?? 'Пользователь',
+  text: raw.text ?? '',
+  createdAt: raw.createdAt ?? raw.created_at ?? '',
+});
+
+// «2026-07-15» из <input type="date"> → UTC ISO, чтобы PostgreSQL timestamptz не падал.
+const toUtcIso = (value: string): string | null => {
+  if (!value) return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? value : d.toISOString();
+};
+
+export const TaskDetailsModal = ({
+  task,
+  isOpen,
+  onClose,
   onTaskUpdated,
-  onTaskDeleted 
+  onTaskDeleted,
 }: TaskDetailsModalProps) => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [comments, setComments] = useState<CommentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
@@ -46,6 +76,8 @@ export const TaskDetailsModal = ({
     assigneeId: null as number | null,
   });
   const [saving, setSaving] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
   const api = useApi();
 
   useEffect(() => {
@@ -55,10 +87,11 @@ export const TaskDetailsModal = ({
       setEditData({
         title: task.title,
         description: task.description || '',
-        deadline: task.deadline || '',
+        deadline: task.deadline ? task.deadline.slice(0, 10) : '',
         assigneeId: task.assignee_id || null,
       });
       setIsEditing(false);
+      setCommentText('');
     }
   }, [task, isOpen]);
 
@@ -66,9 +99,8 @@ export const TaskDetailsModal = ({
     try {
       setLoading(true);
       const response = await api.getTaskHistory(taskId);
-      // Извлекаем данные из ответа
       const data = response.data;
-      setHistory(Array.isArray(data) ? data : []);
+      setHistory(Array.isArray(data) ? data.map(normalizeHistory) : []);
     } catch (error) {
       console.error('Ошибка загрузки истории:', error);
       setHistory([]);
@@ -80,9 +112,8 @@ export const TaskDetailsModal = ({
   const loadComments = async (taskId: number) => {
     try {
       const response = await api.getComments(taskId);
-      // Извлекаем данные из ответа
       const data = response.data;
-      setComments(Array.isArray(data) ? data : []);
+      setComments(Array.isArray(data) ? data.map(normalizeComment) : []);
     } catch (error) {
       console.error('Ошибка загрузки комментариев:', error);
       setComments([]);
@@ -91,28 +122,23 @@ export const TaskDetailsModal = ({
 
   const handleSave = async () => {
     if (!task) return;
-
     try {
       setSaving(true);
       const response = await api.updateTask(task.id, {
         title: editData.title,
         description: editData.description,
-        deadline: editData.deadline || null,
+        deadline: toUtcIso(editData.deadline),
         assignedToId: editData.assigneeId,
       });
-      
-      // Извлекаем данные из ответа
       const updated = response.data;
-      
       setIsEditing(false);
-      if (onTaskUpdated) {
-        onTaskUpdated(updated);
-      }
-      // Обновляем локальные данные
+      if (onTaskUpdated) onTaskUpdated(updated);
       task.title = editData.title;
       task.description = editData.description;
-      task.deadline = editData.deadline || null;
+      task.deadline = toUtcIso(editData.deadline);
       task.assignee_id = editData.assigneeId;
+      // История пополнилась записью «Изменена» — перечитываем.
+      loadHistory(task.id);
     } catch (error) {
       console.error('Ошибка сохранения:', error);
       alert('Не удалось сохранить изменения');
@@ -121,16 +147,30 @@ export const TaskDetailsModal = ({
     }
   };
 
+  const handleAddComment = async () => {
+    if (!task) return;
+    const text = commentText.trim();
+    if (!text) return;
+    try {
+      setSendingComment(true);
+      await api.createComment(task.id, { text });
+      setCommentText('');
+      // Комментарий пишет и запись в историю («Комментарий») — обновляем оба списка.
+      await Promise.all([loadComments(task.id), loadHistory(task.id)]);
+    } catch (error) {
+      console.error('Ошибка добавления комментария:', error);
+      alert('Не удалось отправить комментарий');
+    } finally {
+      setSendingComment(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!task) return;
-    
     if (!confirm(`Вы уверены, что хотите удалить задачу "${task.title}"?`)) return;
-
     try {
       await api.deleteTask(task.id);
-      if (onTaskDeleted) {
-        onTaskDeleted(task.id);
-      }
+      if (onTaskDeleted) onTaskDeleted(task.id);
       onClose();
     } catch (error) {
       console.error('Ошибка удаления:', error);
@@ -146,7 +186,7 @@ export const TaskDetailsModal = ({
       preparation: 'Преподготовка',
       execution: 'Выполнение',
       testing: 'Тестирование',
-      done: 'Готово'
+      done: 'Готово',
     };
     return labels[status] || status;
   };
@@ -171,7 +211,7 @@ export const TaskDetailsModal = ({
           {!isEditing ? (
             <>
               <h3 className="task-detail__title">{task.title}</h3>
-              
+
               <div className="task-detail__meta">
                 <div className="task-detail__field">
                   <span className="task-detail__label">Статус:</span>
@@ -179,7 +219,7 @@ export const TaskDetailsModal = ({
                     {getStatusLabel(task.status)}
                   </span>
                 </div>
-                
+
                 <div className="task-detail__field">
                   <span className="task-detail__label">Дедлайн:</span>
                   <span className={`task-detail__value ${getDeadlineClass()}`}>
@@ -217,21 +257,17 @@ export const TaskDetailsModal = ({
                   <p className="task-detail__empty">История пуста</p>
                 ) : (
                   <ul className="task-detail__history-list">
-                    {history.map((item, index) => (
-                      <li key={index} className="task-detail__history-item">
+                    {history.map((item) => (
+                      <li key={item.id} className="task-detail__history-item">
                         <div className="task-detail__history-header">
-                          <span className="task-detail__history-user">{item.user_name}</span>
+                          <span className="task-detail__history-user">{item.username}</span>
                           <span className="task-detail__history-date">
-                            {formatDate(item.created_at)}
+                            {formatDate(item.createdAt)}
                           </span>
                         </div>
                         <div className="task-detail__history-action">
-                          {item.action}
-                          {item.old_value && item.new_value && (
-                            <span>
-                              : {item.old_value} → {item.new_value}
-                            </span>
-                          )}
+                          <strong>{item.actionType}</strong>
+                          {item.details ? ` — ${item.details}` : ''}
                         </div>
                       </li>
                     ))}
@@ -248,9 +284,9 @@ export const TaskDetailsModal = ({
                     {comments.map((comment) => (
                       <li key={comment.id} className="task-detail__comment-item">
                         <div className="task-detail__comment-header">
-                          <span className="task-detail__comment-user">{comment.user_name}</span>
+                          <span className="task-detail__comment-user">{comment.username}</span>
                           <span className="task-detail__comment-date">
-                            {formatDate(comment.created_at)}
+                            {formatDate(comment.createdAt)}
                           </span>
                         </div>
                         <div className="task-detail__comment-text">{comment.text}</div>
@@ -258,6 +294,26 @@ export const TaskDetailsModal = ({
                     ))}
                   </ul>
                 )}
+
+                <div className="task-detail__comment-form">
+                  <textarea
+                    className="task-detail__comment-input"
+                    rows={2}
+                    placeholder="Написать комментарий…"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleAddComment();
+                    }}
+                  />
+                  <button
+                    className="btn-primary task-detail__comment-send"
+                    onClick={handleAddComment}
+                    disabled={sendingComment || !commentText.trim()}
+                  >
+                    {sendingComment ? 'Отправка…' : <><Icon name="send" size={16} /> Отправить</>}
+                  </button>
+                </div>
               </div>
 
               <div className="modal__actions task-detail__actions">
@@ -275,7 +331,7 @@ export const TaskDetailsModal = ({
           ) : (
             <div className="task-detail__edit">
               <h3 className="task-detail__edit-title">Редактирование задачи</h3>
-              
+
               <div className="task-detail__edit-field">
                 <label>Название</label>
                 <input
@@ -308,9 +364,9 @@ export const TaskDetailsModal = ({
                 <input
                   type="number"
                   value={editData.assigneeId || ''}
-                  onChange={(e) => setEditData({ 
-                    ...editData, 
-                    assigneeId: e.target.value ? Number(e.target.value) : null 
+                  onChange={(e) => setEditData({
+                    ...editData,
+                    assigneeId: e.target.value ? Number(e.target.value) : null,
                   })}
                   placeholder="ID пользователя"
                 />

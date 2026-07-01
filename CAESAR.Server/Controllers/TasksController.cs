@@ -29,6 +29,17 @@ namespace CAESAR.Server.Controllers
             return int.TryParse(sub, out var id) ? id : 0;
         }
 
+        // PostgreSQL 'timestamp with time zone' принимает только DateTime с Kind=Utc.
+        // Клиент шлёт дедлайн как дату без зоны (Kind=Unspecified) — раньше это валило PATCH в 500.
+        // Приводим к UTC: Unspecified трактуем как UTC-полночь выбранного дня, Local конвертируем.
+        private static DateTime? ToUtc(DateTime? value) => value switch
+        {
+            null => null,
+            { Kind: DateTimeKind.Utc } d => d,
+            { Kind: DateTimeKind.Local } d => d.ToUniversalTime(),
+            { } d => DateTime.SpecifyKind(d, DateTimeKind.Utc)
+        };
+
         // Задачи одной страницы (доски)
         [HttpGet("page/{pageId}")]
         public async Task<IActionResult> GetTasksByPage(int pageId)
@@ -78,6 +89,41 @@ namespace CAESAR.Server.Controllers
             return Ok(tasks);
         }
 
+        // Одна задача по id (для команды бота /status {id}). Доступ — только участнику проекта.
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetTaskById(int id)
+        {
+            int currentUserId = CurrentUserId();
+            if (currentUserId == 0) return Unauthorized("Не удалось определить пользователя из токена.");
+
+            var task = await _context.BoardTasks.FindAsync(id);
+            if (task == null) return NotFound("Запрашиваемая задача не найдена");
+
+            var page = await _context.ProjectPages.FindAsync(task.ProjectPageId);
+            if (page == null) return NotFound("Запрашиваемая страница не найдена");
+
+            var member = await _context.Members.FirstOrDefaultAsync(m => m.ProjectId == page.ProjectId && m.UserId == currentUserId);
+            if (member == null) return Forbid();
+            if (!ProjectPermissions.CanAccessPage(member, task.ProjectPageId)) return StatusCode(403, "Нет доступа к этой странице.");
+
+            var assigneeName = task.AssignedToId is int aid
+                ? (await _context.Users.FindAsync(aid))?.UserName
+                : null;
+
+            return Ok(new
+            {
+                task.Id,
+                task.Title,
+                task.Description,
+                Status = task.Status.ToString(),
+                StatusName = GetStatusName(task.Status),
+                task.Deadline,
+                task.AssignedToId,
+                AssigneeName = assigneeName,
+                PageName = page.Name
+            });
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateTask(CreateTaskDto dto)
         {
@@ -107,7 +153,7 @@ namespace CAESAR.Server.Controllers
                 Description = dto.Description,
                 Status = BoardTaskStatus.Preparaion,
                 Position = 0,
-                Deadline = dto.Deadline,
+                Deadline = ToUtc(dto.Deadline),
                 CreatedById = currentUserId
             };
 
@@ -260,8 +306,9 @@ namespace CAESAR.Server.Controllers
             }
             if (dto.Deadline != task.Deadline)
             {
-                changes.Add(dto.Deadline.HasValue ? $"дедлайн → {dto.Deadline.Value:dd.MM.yyyy}" : "дедлайн снят");
-                task.Deadline = dto.Deadline;
+                var newDeadline = ToUtc(dto.Deadline);
+                changes.Add(newDeadline.HasValue ? $"дедлайн → {newDeadline.Value:dd.MM.yyyy}" : "дедлайн снят");
+                task.Deadline = newDeadline;
             }
             if (dto.AssignedToId != task.AssignedToId)
             {

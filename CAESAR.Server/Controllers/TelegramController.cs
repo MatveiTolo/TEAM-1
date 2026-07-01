@@ -81,6 +81,17 @@ namespace CAESAR.Server.Controllers
             link.IsLinked = true;
             link.LinkCode = null;
             link.CodeExpiresAtUtc = null;
+
+            // Регистрируем канал доставки, чтобы уведомления и рассылки уходили в Telegram (раздел 9.3).
+            var channel = await _db.UserNotifications
+                .FirstOrDefaultAsync(un => un.UserId == user.Id && un.Provider == "Telegram", ct);
+            if (channel is null)
+            {
+                channel = new UserNotification { UserId = user.Id, Provider = "Telegram" };
+                _db.UserNotifications.Add(channel);
+            }
+            channel.ProviderUserId = req.TelegramId.ToString();
+
             await _db.SaveChangesAsync(ct);
 
             // Долгоживущий JWT юзера для бота (30 дней)

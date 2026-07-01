@@ -13,6 +13,8 @@ export type IconName =
   | 'lock'
   | 'alert'
   | 'ban'
+  | 'send'
+  | 'mail'
   | 'close';
 
 interface IconProps {
@@ -94,6 +96,13 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="10" />
       <path d="M4.93 4.93l14.14 14.14" />
+    </>
+  ),
+  send: <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />,
+  mail: (
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
     </>
   ),
   close: <path d="M18 6L6 18M6 6l12 12" />,

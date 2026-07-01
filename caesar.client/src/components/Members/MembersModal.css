@@ -1,0 +1,92 @@
+.members-modal { max-width: 560px; width: 100%; }
+.members-modal__body { display: flex; flex-direction: column; gap: 16px; padding: 4px 2px; }
+
+.members-invite__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.members-invite__email {
+  flex: 1 1 200px;
+  min-width: 160px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+}
+.members-invite__role {
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+}
+.members-invite__btn { display: inline-flex; align-items: center; gap: 6px; }
+.members-invite__email:focus,
+.members-invite__role:focus { outline: none; border-color: rgba(120, 140, 255, 0.6); }
+
+.members-invite__error {
+  margin-top: 8px;
+  color: #ff8080;
+  font-size: 13px;
+}
+.members-invite__notice {
+  margin-top: 8px;
+  color: #7ee0a0;
+  font-size: 13px;
+}
+
+.members-list { display: flex; flex-direction: column; gap: 8px; }
+.members-list__empty { opacity: 0.6; text-align: center; padding: 12px; }
+.members-list__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.members-list__info { display: flex; flex-direction: column; min-width: 0; }
+.members-list__name { font-weight: 600; }
+.members-list__email { font-size: 12px; opacity: 0.65; }
+.members-list__controls { display: flex; align-items: center; gap: 8px; }
+.members-list__controls select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+}
+.members-list__remove {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #ff8080;
+  cursor: pointer;
+}
+.members-list__remove:hover { background: rgba(255, 90, 90, 0.12); }
+
+/* Кнопка «Участники» на карточке проекта */
+.project-card__members-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.project-card__members-btn:hover { background: rgba(255, 255, 255, 0.1); }

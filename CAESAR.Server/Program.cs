@@ -74,9 +74,12 @@ namespace CAESAR.Server
             });
 
             builder.Services.AddSingleton<NotificationProviderFactory>();
-            // builder.Services.AddTransient<INotificationProvider, *Провайдер*>();
+            // Провайдер Telegram: прямая отправка через Bot API sendMessage (раздел 9.3).
+            builder.Services.AddTransient<INotificationProvider, TelegramNotificationProvider>();
             // Регистрируем наш оркестрирующий сервис уведомлений
             builder.Services.AddTransient<INotificationService, NotificationService>();
+            // Ежедневные рассылки: напоминания 09:00 и отчёт 10:00 (раздел 9.2/9.3).
+            builder.Services.AddHostedService<CAESAR.Server.BackgroundJobs.DailyDigestService>();
 
 
             var app = builder.Build();
