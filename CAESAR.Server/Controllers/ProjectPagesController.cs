@@ -1,6 +1,7 @@
 ﻿using CAESAR.Server.Data;
 using CAESAR.Server.DTOs;
 using CAESAR.Server.Models;
+using CAESAR.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -14,10 +15,12 @@ namespace CAESAR.Server.Controllers
     public class ProjectPagesController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly INotificationService _notificationService;
 
-        public ProjectPagesController(AppDbContext context)
+        public ProjectPagesController(AppDbContext context, INotificationService notificationService)
         {
             _context = context;
+            _notificationService = notificationService;
         }
 
         [HttpPost]
@@ -44,6 +47,27 @@ namespace CAESAR.Server.Controllers
             _context.ProjectPages.Add(newPage);
             await _context.SaveChangesAsync();
 
+            // Уведомляем супер-админов проекта (кроме создателя) о новой доске.
+            var adminIds = await _context.Members
+                .Where(m => m.ProjectId == dto.ProjectId
+                            && m.Role == (int)UserRole.GlobalAdmin
+                            && m.UserId != currentUserId)
+                .Select(m => m.UserId)
+                .ToListAsync();
+
+            if (adminIds.Count > 0)
+            {
+                var creator = await _context.Users.FindAsync(currentUserId);
+                var creatorName = creator?.UserName ?? "участник";
+                var message = "Новая доска в проекте\n" +
+                              $"«{newPage.Name}»\n" +
+                              $"Создал: {creatorName}";
+                foreach (var adminId in adminIds)
+                {
+                    try { await _notificationService.SendToUserAsync(adminId, message); }
+                    catch { /* best-effort */ }
+                }
+            }
 
             return Ok(newPage);
         }

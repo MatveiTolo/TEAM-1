@@ -258,6 +258,16 @@ body {
   animation: fadeSlideUpFrieze 1.5s ease-out 0.6s forwards;
 }
 
+/* Модификатор: меандр поднят на место убранных Цезарей.
+   Небольшой верхний отступ даёт воздух под геро-секцией,
+   не затрагивая масштаб фоновой картинки самого героя. */
+.neon-frieze--raised {
+  margin-top: 32px;
+}
+@media (min-width: 1024px) {
+  .neon-frieze--raised { margin-top: 40px; }
+}
+
 @keyframes fadeSlideUpFrieze {
   0% { opacity: 0; transform: translateY(20px); }
   100% { opacity: 1; transform: translateY(0); }

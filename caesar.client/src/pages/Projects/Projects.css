@@ -159,26 +159,63 @@
 }
 .project-card__progress-track {
   position: relative;
-  height: 6px;
+  height: 8px;
   border-radius: var(--r-pill);
-  background: var(--c-surface-3);
+  /* Углублённый жёлоб: тёмная подложка + лёгкая внутренняя тень для объёма */
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.015));
   border: 1px solid var(--c-border-2);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   overflow: hidden;
+}
+/* Вехи 25 / 50 / 75 % — тонкие засечки прямо в жёлобе */
+.project-card__progress-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(25% - 1px), rgba(255, 255, 255, 0.10) calc(25% - 1px), rgba(255, 255, 255, 0.10) 25%,
+    transparent 25%,
+    transparent calc(50% - 1px), rgba(255, 255, 255, 0.10) calc(50% - 1px), rgba(255, 255, 255, 0.10) 50%,
+    transparent 50%,
+    transparent calc(75% - 1px), rgba(255, 255, 255, 0.10) calc(75% - 1px), rgba(255, 255, 255, 0.10) 75%,
+    transparent 75%
+  );
 }
 .project-card__progress-fill {
   position: relative;
   height: 100%;
   border-radius: var(--r-pill);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.45) 0%, #ffffff 100%);
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.35) 0%, #ffffff 100%);
+  box-shadow:
+    0 0 12px rgba(255, 255, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
   transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
   min-width: 0;
+}
+/* Яркий ведущий край — «голова» заполнения */
+.project-card__progress-fill::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translate(50%, -50%);
+  background: #ffffff;
+  box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.55);
+  opacity: 0.9;
 }
 /* Лёгкий «бегущий блик» по заполненной части */
 .project-card__progress-fill::after {
   content: '';
   position: absolute;
   inset: 0;
+  border-radius: var(--r-pill);
   background: linear-gradient(
     90deg,
     transparent 0%,
@@ -188,10 +225,21 @@
   transform: translateX(-100%);
   animation: projectProgressShine 2.8s ease-in-out infinite;
 }
+/* Пороговая подсветка: чем ближе к финишу, тем теплее свечение */
+.project-card__progress-fill.is-high {
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.35) 0%, #d1fae5 100%);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
 .project-card__progress-fill.is-complete {
   background: linear-gradient(90deg, var(--c-success, #22c55e) 0%, #4ade80 100%);
-  box-shadow: 0 0 14px rgba(34, 197, 94, 0.4);
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
+.project-card__progress-fill.is-complete::before {
+  background: #eafff1;
+  box-shadow: 0 0 10px 2px rgba(74, 222, 128, 0.7);
+}
+/* На 0% ведущую точку прячем, чтобы не висела у левого края */
+.project-card__progress-fill.is-empty::before { display: none; }
 
 @keyframes projectProgressShine {
   0% { transform: translateX(-100%); }

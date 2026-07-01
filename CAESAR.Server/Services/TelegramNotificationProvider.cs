@@ -35,6 +35,7 @@ namespace CAESAR.Server.Services
             var client = _httpFactory.CreateClient();
             var url = $"https://api.telegram.org/bot{token}/sendMessage";
 
+            // Первая попытка — с Markdown (жирный текст в интерактивных уведомлениях).
             var payload = new
             {
                 chat_id = providerUserId,
@@ -43,11 +44,29 @@ namespace CAESAR.Server.Services
                 disable_web_page_preview = true
             };
 
-            using var resp = await client.PostAsJsonAsync(url, payload);
-            if (!resp.IsSuccessStatusCode)
+            using (var resp = await client.PostAsJsonAsync(url, payload))
             {
+                if (resp.IsSuccessStatusCode) return;
+
                 var body = await resp.Content.ReadAsStringAsync();
-                _logger.LogError("Telegram sendMessage {Status}: {Body}", resp.StatusCode, body);
+                _logger.LogWarning("Telegram sendMessage (Markdown) {Status}: {Body}. Повтор без разметки.",
+                    resp.StatusCode, body);
+            }
+
+            // Fallback: произвольный текст (заголовки задач могут содержать * _ [ ] и т.п.,
+            // из-за чего Markdown-парсер Telegram отдаёт 400). Шлём как обычный текст.
+            var plainPayload = new
+            {
+                chat_id = providerUserId,
+                text = message,
+                disable_web_page_preview = true
+            };
+
+            using var plainResp = await client.PostAsJsonAsync(url, plainPayload);
+            if (!plainResp.IsSuccessStatusCode)
+            {
+                var body = await plainResp.Content.ReadAsStringAsync();
+                _logger.LogError("Telegram sendMessage {Status}: {Body}", plainResp.StatusCode, body);
             }
         }
     }

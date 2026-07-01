@@ -7,14 +7,6 @@ interface LandingProps {
   onNavigate: (page: string) => void;
 }
 
-const CARDS = [
-  { id: 'red', combo: 'combo-red.png', color: '#ff4d4d' },
-  { id: 'yellow', combo: 'combo-yellow.png', color: '#ffd700' },
-  { id: 'green', combo: 'combo-green.png', color: '#22c55e' },
-  { id: 'blue', combo: 'combo-blue.png', color: '#0ea5e9' },
-  { id: 'purple', combo: 'combo-purple.png', color: '#a855f7' },
-];
-
 export const Landing = ({ onNavigate }: LandingProps) => {
   return (
     <div className="landing-page">
@@ -46,25 +38,9 @@ export const Landing = ({ onNavigate }: LandingProps) => {
       {/* ОСНОВНОЙ КОНТЕНТ */}
       <div className="landing-main">
         <div className="landing-main__inner">
-          
-          {/* ЦЕЗАРИ (подняты на 2px: -62 → -64) */}
-          <div className="landing-cards-wrapper">
-            <div className="landing-cards">
-              {CARDS.map((item) => (
-                <div key={item.id} className="landing-card-group">
-                  <img 
-                    src={`/attachments/${item.combo}`} 
-                    alt="" 
-                    className="landing-card-group__combo" 
-                    style={{ marginTop: '-64px' }} 
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
 
-          {/* БЕГУЩИЙ МЕАНДР */}
-          <div className="neon-frieze neon-show">
+          {/* БЕГУЩИЙ МЕАНДР (поднят на место убранных Цезарей) */}
+          <div className="neon-frieze neon-show neon-frieze--raised">
             <div className="neon-frieze__fade-container">
               <div className="neon-frieze__top-line"></div>
               <div className="neon-frieze__track">

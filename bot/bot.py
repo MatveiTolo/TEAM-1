@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
+    BotCommand,
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -59,31 +60,88 @@ def _move_keyboard(task_id: int, current: int) -> InlineKeyboardMarkup:
 # ---------------------------------------------------------------------------
 # Базовые команды
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Меню бота (раздел 9: понятная навигация без эмодзи)
+# ---------------------------------------------------------------------------
+# Персистентный список команд (кнопка «Меню» рядом с полем ввода).
+BOT_COMMANDS = [
+    BotCommand(command="menu", description="Что умеет бот — список возможностей"),
+    BotCommand(command="tasks", description="Мои задачи по проектам"),
+    BotCommand(command="status", description="Карточка задачи по номеру + управление"),
+    BotCommand(command="new", description="Создать задачу"),
+    BotCommand(command="report", description="Сводка по статусам задач"),
+    BotCommand(command="link", description="Привязать аккаунт CAESAR по коду"),
+    BotCommand(command="unlink", description="Отвязать аккаунт"),
+    BotCommand(command="help", description="Краткая справка по командам"),
+]
+
+# Единый текст меню-путеводителя (без эмодзи).
+MENU_TEXT = (
+    "Меню CAESAR\n"
+    "\n"
+    "Я связываю Telegram с вашими досками CAESAR: показываю задачи, "
+    "двигаю их по колонкам, шлю уведомления и отвечаю на вопросы по проектам.\n"
+    "\n"
+    "Начало работы\n"
+    "/link КОД — привязать аккаунт (код берётся на сайте, кнопка «Подключить Telegram»)\n"
+    "/unlink — отвязать аккаунт\n"
+    "\n"
+    "Задачи\n"
+    "/tasks — все задачи, где вы автор или исполнитель, сгруппированы по проектам\n"
+    "/status ID — карточка одной задачи (статус, доска, исполнитель, дедлайн) с кнопками перемещения по колонкам\n"
+    "/new — создать задачу пошагово\n"
+    "\n"
+    "Аналитика\n"
+    "/report — сколько задач в каждой колонке: Преподготовка, Выполнение, Тестирование, Готово\n"
+    "\n"
+    "Уведомления приходят автоматически\n"
+    "— супер-админу проекта: о новых задачах и досках\n"
+    "— исполнителю: когда дедлайн сегодня или уже просрочен\n"
+    "— ежедневный отчёт: супер-админу по проекту, остальным — краткая сводка\n"
+    "\n"
+    "Вопрос своими словами\n"
+    "Напишите обычным текстом — отвечу ИИ по данным ваших проектов "
+    "(например: «что горит по срокам на этой неделе?»)."
+)
+
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    await message.answer(
-        "Привет. Я ассистент CAESAR.\n\n"
-        "1. На сайте CAESAR нажми «Подключить Telegram» — получишь код.\n"
-        "2. Пришли его сюда: /link КОД\n\n"
-        "После привязки:\n"
-        "• пиши вопросы обычным текстом — отвечу ИИ по твоим задачам;\n"
-        "• /tasks — список задач\n"
-        "• /status ID — карточка задачи с кнопками управления\n"
-        "• /report — сводка по статусам\n"
-        "• /new — создать задачу\n"
-        "• /help — помощь"
-    )
+    linked = db.get_jwt(message.from_user.id) is not None
+    if linked:
+        await message.answer(
+            "С возвращением. Открой /menu — там все возможности. "
+            "Быстрые команды: /tasks, /new, /report."
+        )
+    else:
+        await message.answer(
+            "Привет. Я ассистент CAESAR.\n"
+            "\n"
+            "Чтобы начать:\n"
+            "1. На сайте CAESAR нажми «Подключить Telegram» — получишь код.\n"
+            "2. Пришли его сюда: /link КОД\n"
+            "\n"
+            "После привязки открой /menu — покажу, что умею."
+        )
+
+
+@dp.message(Command("menu"))
+async def cmd_menu(message: Message):
+    await message.answer(MENU_TEXT)
 
 
 @dp.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
         "Команды:\n"
+        "/menu — что умеет бот, с пояснениями\n"
         "/tasks — все твои задачи\n"
         "/status ID — задача по номеру + кнопки перемещения\n"
         "/report — отчёт по статусам\n"
         "/new — создать задачу\n"
-        "/unlink — отвязать аккаунт\n\n"
+        "/link КОД — привязать аккаунт\n"
+        "/unlink — отвязать аккаунт\n"
+        "\n"
         "Или просто задай вопрос текстом — отвечу по данным твоих проектов."
     )
 
@@ -141,7 +199,7 @@ async def cmd_tasks(message: Message):
         tasks = proj.get("tasks", [])
         if not tasks:
             continue
-        lines.append(f"📁 *{proj.get('name', 'Проект')}*")
+        lines.append(f"*{proj.get('name', 'Проект')}*")
         for t in tasks:
             st = STATUS_RU.get(NAME_TO_INT.get(t.get("status", ""), 0), t.get("status", ""))
             dl = t.get("deadline")
@@ -269,12 +327,12 @@ async def cmd_report(message: Message):
                 total += 1
 
     await message.answer(
-        "📊 *Отчёт по задачам*\n"
+        "*Отчёт по задачам*\n"
         f"Всего: {total}\n"
-        f"• Преподготовка: {counts[1]}\n"
-        f"• Выполнение: {counts[2]}\n"
-        f"• Тестирование: {counts[3]}\n"
-        f"• Готово: {counts[4]}",
+        f"— Преподготовка: {counts[1]}\n"
+        f"— Выполнение: {counts[2]}\n"
+        f"— Тестирование: {counts[3]}\n"
+        f"— Готово: {counts[4]}",
         parse_mode="Markdown",
     )
 
@@ -364,6 +422,8 @@ async def on_question(message: Message):
 
 async def main():
     db.init()
+    # Регистрируем меню команд бота (кнопка «Меню» в интерфейсе Telegram).
+    await bot.set_my_commands(BOT_COMMANDS)
     await dp.start_polling(bot)
 
 

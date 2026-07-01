@@ -172,6 +172,19 @@ namespace CAESAR.Server.Controllers
             });
             await _context.SaveChangesAsync();
 
+            // Уведомляем супер-админов проекта (роль GlobalAdmin) о новой задаче.
+            // Создателя не уведомляем — он и так знает. Доставка идёт только тем,
+            // у кого подключён канал (SendToUserAsync сам no-op при отсутствии канала).
+            await NotifyProjectAdminsAsync(
+                page.ProjectId,
+                exceptUserId: currentUserId,
+                buildMessage: creatorName =>
+                    "Новая задача в проекте\n" +
+                    $"#{newTask.Id} «{newTask.Title}»\n" +
+                    $"Доска: {page.Name}\n" +
+                    $"Создал: {creatorName}" +
+                    (newTask.Deadline is DateTime dl ? $"\nДедлайн: {dl:dd.MM.yyyy}" : ""));
+
             return Ok(newTask);
         }
 
@@ -459,6 +472,29 @@ namespace CAESAR.Server.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(new { message = $"Задача {id} успешно удалена из системы" });
+        }
+
+        // Рассылает уведомление всем супер-админам (GlobalAdmin) проекта, кроме exceptUserId.
+        // buildMessage получает имя инициатора действия для подстановки в текст.
+        private async Task NotifyProjectAdminsAsync(int projectId, int exceptUserId, Func<string, string> buildMessage)
+        {
+            var adminIds = await _context.Members
+                .Where(m => m.ProjectId == projectId
+                            && m.Role == (int)UserRole.GlobalAdmin
+                            && m.UserId != exceptUserId)
+                .Select(m => m.UserId)
+                .ToListAsync();
+
+            if (adminIds.Count == 0) return;
+
+            var initiator = await _context.Users.FindAsync(exceptUserId);
+            var message = buildMessage(initiator?.UserName ?? "участник");
+
+            foreach (var adminId in adminIds)
+            {
+                try { await _notificationService.SendToUserAsync(adminId, message); }
+                catch { /* доставка best-effort: сбой канала не должен ронять запрос */ }
+            }
         }
 
         private static string GetStatusName(BoardTaskStatus status) => status switch

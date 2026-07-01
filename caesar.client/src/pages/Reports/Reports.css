@@ -73,23 +73,53 @@
   color: var(--c-text-muted);
   margin-bottom: 8px;
 }
-.rep-bar__count { color: var(--c-text); font-weight: 600; }
+.rep-bar__count { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
 .rep-bar__track {
-  height: 8px;
-  background: var(--c-surface-3);
+  position: relative;
+  height: 10px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--c-border-2);
   border-radius: var(--r-pill);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
 .rep-bar__fill {
+  position: relative;
   height: 100%;
   border-radius: var(--r-pill);
   background: var(--c-text-dim);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.rep-bar__fill.status-preparation { background: var(--c-status-prep); }
-.rep-bar__fill.status-execution   { background: var(--c-status-exec); }
-.rep-bar__fill.status-testing     { background: var(--c-status-test); }
-.rep-bar__fill.status-done        { background: var(--c-status-done); }
+/* Мягкий верхний блик поверх цвета статуса — придаёт объём */
+.rep-bar__fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-pill);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 60%);
+  pointer-events: none;
+}
+.rep-bar__fill.status-preparation {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.55), var(--c-status-prep));
+  box-shadow: 0 0 10px rgba(148, 163, 184, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.rep-bar__fill.status-execution {
+  background: linear-gradient(90deg, rgba(96, 165, 250, 0.55), var(--c-status-exec));
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.rep-bar__fill.status-testing {
+  background: linear-gradient(90deg, rgba(192, 132, 252, 0.55), var(--c-status-test));
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.rep-bar__fill.status-done {
+  background: linear-gradient(90deg, rgba(74, 222, 128, 0.55), var(--c-status-done));
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rep-bar__fill { transition: none; }
+}
 
 .rep-empty { color: var(--c-text-faint); font-size: 14px; }
 .rep-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }

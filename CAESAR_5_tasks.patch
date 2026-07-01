@@ -1,0 +1,863 @@
+diff --git a/CAESAR.Server/BackgroundJobs/DailyDigestService.cs b/CAESAR.Server/BackgroundJobs/DailyDigestService.cs
+index 20aad26..fa2f80c 100644
+--- a/CAESAR.Server/BackgroundJobs/DailyDigestService.cs
++++ b/CAESAR.Server/BackgroundJobs/DailyDigestService.cs
+@@ -5,11 +5,13 @@ using Microsoft.EntityFrameworkCore;
+ 
+ namespace CAESAR.Server.BackgroundJobs
+ {
+-    // Ежедневные Telegram-рассылки (раздел 9.2/9.3): роль cron/node-cron.
+-    //   09:00 — персональные напоминания (список задач пользователя, акцент на просрочках/сегодня).
+-    //   10:00 — краткий отчёт по проектам пользователя.
+-    // Проверяем раз в минуту локальное время (смещение Telegram:DigestUtcOffsetHours, по умолчанию 0=UTC)
+-    // и один раз за день шлём каждый дайджест. Адресаты — у кого подключён канал Telegram.
++    // Ежедневные Telegram-рассылки (роль cron/node-cron). Раз в минуту сверяем
++    // локальное время (смещение Telegram:DigestUtcOffsetHours, 0=UTC) и один раз
++    // за день шлём каждый дайджест. Адресаты — у кого подключён канал Telegram.
++    //
++    //   Telegram:ReminderHour (09:00) — исполнителю: задачи с дедлайном сегодня/просроченные.
++    //   Telegram:ReportHour   (10:00) — супер-админу: расширенный отчёт по проекту за день;
++    //                                    остальным участникам — краткая сводка по статусам.
+     public sealed class DailyDigestService : BackgroundService
+     {
+         private readonly IServiceScopeFactory _scopeFactory;
+@@ -45,12 +47,12 @@ namespace CAESAR.Server.BackgroundJobs
+                     if (localNow.Hour == reminderHour && _lastReminderDate != today)
+                     {
+                         _lastReminderDate = today;
+-                        await SendDigestAsync(DigestKind.Reminder, offset, stoppingToken);
++                        await SendDeadlineAlertsAsync(offset, stoppingToken);
+                     }
+                     if (localNow.Hour == reportHour && _lastReportDate != today)
+                     {
+                         _lastReportDate = today;
+-                        await SendDigestAsync(DigestKind.Report, offset, stoppingToken);
++                        await SendDailyReportsAsync(offset, stoppingToken);
+                     }
+                 }
+                 catch (Exception ex)
+@@ -62,26 +64,134 @@ namespace CAESAR.Server.BackgroundJobs
+             }
+         }
+ 
+-        private enum DigestKind { Reminder, Report }
+-
+-        private async Task SendDigestAsync(DigestKind kind, int offset, CancellationToken ct)
++        // ─────────────────────────────────────────────────────────────────────
++        // 1) Дедлайн-алерты исполнителю: задачи, назначенные на пользователя,
++        //    у которых дедлайн сегодня или уже просрочен (и они не «Готово»).
++        // ─────────────────────────────────────────────────────────────────────
++        private async Task SendDeadlineAlertsAsync(int offset, CancellationToken ct)
+         {
+             using var scope = _scopeFactory.CreateScope();
+             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+             var notifier = scope.ServiceProvider.GetRequiredService<INotificationService>();
+ 
+-            // Пользователи с подключённым Telegram-каналом.
++            var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(offset));
++
++            // Кому вообще можем доставить — у кого подключён Telegram.
+             var recipients = await db.UserNotifications
+                 .Where(un => un.Provider == "Telegram")
+                 .Select(un => un.UserId)
+                 .Distinct()
+                 .ToListAsync(ct);
+ 
+-            var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(offset));
+-
+             foreach (var userId in recipients)
+             {
+-                // Страницы всех проектов пользователя.
++                var assigned = await db.BoardTasks
++                    .Where(t => t.AssignedToId == userId
++                                && t.Status != BoardTaskStatus.Done
++                                && t.Deadline != null)
++                    .Select(t => new { t.Id, t.Title, t.Deadline })
++                    .ToListAsync(ct);
++
++                if (assigned.Count == 0) continue;
++
++                var overdue = assigned
++                    .Where(t => DateOnly.FromDateTime(t.Deadline!.Value) < today)
++                    .OrderBy(t => t.Deadline).ToList();
++                var dueToday = assigned
++                    .Where(t => DateOnly.FromDateTime(t.Deadline!.Value) == today)
++                    .ToList();
++
++                if (overdue.Count == 0 && dueToday.Count == 0) continue;
++
++                var lines = new List<string> { "Дедлайны по вашим задачам" };
++                if (overdue.Count > 0)
++                {
++                    lines.Add($"\nПросрочено ({overdue.Count}):");
++                    lines.AddRange(overdue.Take(15).Select(t => $"— #{t.Id} {t.Title} (до {t.Deadline:dd.MM})"));
++                }
++                if (dueToday.Count > 0)
++                {
++                    lines.Add($"\nСегодня ({dueToday.Count}):");
++                    lines.AddRange(dueToday.Take(15).Select(t => $"— #{t.Id} {t.Title}"));
++                }
++
++                await notifier.SendToUserAsync(userId, string.Join("\n", lines));
++            }
++        }
++
++        // ─────────────────────────────────────────────────────────────────────
++        // 2) Ежедневный отчёт:
++        //    • супер-админам (GlobalAdmin) — расширенный отчёт по каждому их проекту;
++        //    • остальным Telegram-участникам — краткая персональная сводка.
++        // ─────────────────────────────────────────────────────────────────────
++        private async Task SendDailyReportsAsync(int offset, CancellationToken ct)
++        {
++            using var scope = _scopeFactory.CreateScope();
++            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
++            var notifier = scope.ServiceProvider.GetRequiredService<INotificationService>();
++
++            var todayLocal = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(offset));
++            var dayStartUtc = DateTime.SpecifyKind(
++                todayLocal.ToDateTime(TimeOnly.MinValue).AddHours(-offset), DateTimeKind.Utc);
++            var dayEndUtc = dayStartUtc.AddDays(1);
++
++            var telegramUserIds = await db.UserNotifications
++                .Where(un => un.Provider == "Telegram")
++                .Select(un => un.UserId)
++                .Distinct()
++                .ToListAsync(ct);
++            if (telegramUserIds.Count == 0) return;
++            var telegramSet = telegramUserIds.ToHashSet();
++
++            // Проекты, где есть супер-админ с подключённым Telegram.
++            var adminMemberships = await db.Members
++                .Where(m => m.Role == (int)UserRole.GlobalAdmin && telegramSet.Contains(m.UserId))
++                .Select(m => new { m.ProjectId, m.UserId })
++                .ToListAsync(ct);
++
++            var adminUserIds = adminMemberships.Select(a => a.UserId).ToHashSet();
++            var projectAdmins = adminMemberships
++                .GroupBy(a => a.ProjectId)
++                .ToDictionary(g => g.Key, g => g.Select(a => a.UserId).Distinct().ToList());
++
++            // ── Расширенные отчёты супер-админам по каждому проекту ──
++            foreach (var (projectId, admins) in projectAdmins)
++            {
++                var project = await db.Projects.FindAsync(new object?[] { projectId }, ct);
++                var projectName = project?.Name ?? $"Проект #{projectId}";
++
++                var pageIds = await db.ProjectPages
++                    .Where(p => p.ProjectId == projectId)
++                    .Select(p => p.Id)
++                    .ToListAsync(ct);
++
++                var tasks = await db.BoardTasks
++                    .Where(t => pageIds.Contains(t.ProjectPageId))
++                    .Select(t => new TaskRow(t.Id, t.Title, t.Status, t.Deadline, t.AssignedToId))
++                    .ToListAsync(ct);
++
++                var taskIds = tasks.Select(t => t.Id).ToList();
++
++                var doneTodayIds = await db.TaskHistories
++                    .Where(h => taskIds.Contains(h.TaskId)
++                                && h.StatusAfter == BoardTaskStatus.Done
++                                && h.StatusBefore != BoardTaskStatus.Done
++                                && h.CreatedAt >= dayStartUtc && h.CreatedAt < dayEndUtc)
++                    .Select(h => h.TaskId)
++                    .Distinct()
++                    .ToListAsync(ct);
++
++                var nameMap = await BuildNameMapAsync(db, projectId, ct);
++
++                var text = BuildSuperAdminReport(projectName, tasks, doneTodayIds.ToHashSet(), nameMap, todayLocal);
++
++                foreach (var adminId in admins)
++                    await notifier.SendToUserAsync(adminId, text);
++            }
++
++            // ── Краткая персональная сводка тем, кто нигде не супер-админ ──
++            foreach (var userId in telegramUserIds.Where(id => !adminUserIds.Contains(id)))
++            {
+                 var pageIds = await db.Members
+                     .Where(m => m.UserId == userId)
+                     .Join(db.ProjectPages, m => m.ProjectId, p => p.ProjectId, (m, p) => p.Id)
+@@ -91,63 +201,101 @@ namespace CAESAR.Server.BackgroundJobs
+                 var tasks = await db.BoardTasks
+                     .Where(t => pageIds.Contains(t.ProjectPageId)
+                                 && (t.CreatedById == userId || t.AssignedToId == userId))
+-                    .Select(t => new { t.Id, t.Title, t.Status, t.Deadline })
++                    .Select(t => t.Status)
+                     .ToListAsync(ct);
+ 
+-                string? text = kind == DigestKind.Reminder
+-                    ? BuildReminder(tasks.Select(t => (t.Id, t.Title, t.Status, t.Deadline)), today)
+-                    : BuildReport(tasks.Select(t => (t.Id, t.Title, t.Status, t.Deadline)));
+-
+-                if (text is not null)
+-                    await notifier.SendToUserAsync(userId, text);
++                if (tasks.Count == 0) continue;
++                await notifier.SendToUserAsync(userId, BuildPersonalReport(tasks));
+             }
+         }
+ 
+-        private static string? BuildReminder(
+-            IEnumerable<(int Id, string Title, BoardTaskStatus Status, DateTime? Deadline)> tasks, DateOnly today)
++        private sealed record TaskRow(int Id, string Title, BoardTaskStatus Status, DateTime? Deadline, int? AssignedToId);
++
++        private static async Task<Dictionary<int, string>> BuildNameMapAsync(AppDbContext db, int projectId, CancellationToken ct)
+         {
+-            var list = tasks.ToList();
+-            var active = list.Where(t => t.Status != BoardTaskStatus.Done).ToList();
+-            if (active.Count == 0) return null;
++            return await db.Members
++                .Where(m => m.ProjectId == projectId)
++                .Join(db.Users, m => m.UserId, u => u.Id, (m, u) => u)
++                .Distinct()
++                .ToDictionaryAsync(u => u.Id, u => u.UserName, ct);
++        }
++
++        private static string Assignee(int? id, Dictionary<int, string> names) =>
++            id is int aid && names.TryGetValue(aid, out var n) && !string.IsNullOrWhiteSpace(n)
++                ? n : "не назначен";
++
++        private static string BuildSuperAdminReport(
++            string projectName,
++            List<TaskRow> tasks,
++            HashSet<int> doneTodayIds,
++            Dictionary<int, string> names,
++            DateOnly today)
++        {
++            var active = tasks.Where(t => t.Status != BoardTaskStatus.Done).ToList();
++
++            var doneToday = tasks.Where(t => doneTodayIds.Contains(t.Id)).ToList();
+ 
+             var overdue = active
+                 .Where(t => t.Deadline is { } d && DateOnly.FromDateTime(d) < today)
+                 .OrderBy(t => t.Deadline).ToList();
+             var dueToday = active
+-                .Where(t => t.Deadline is { } d && DateOnly.FromDateTime(d) == today).ToList();
++                .Where(t => t.Deadline is { } d && DateOnly.FromDateTime(d) == today)
++                .ToList();
+ 
+-            var lines = new List<string> { "🔔 *Задачи на сегодня*" };
++            int prep = active.Count(t => t.Status == BoardTaskStatus.Preparaion);
++            int exec = active.Count(t => t.Status == BoardTaskStatus.Execution);
++            int test = active.Count(t => t.Status == BoardTaskStatus.Testing);
++
++            var lines = new List<string>
++            {
++                $"Ежедневный отчёт по проекту «{projectName}»",
++                $"Дата: {today:dd.MM.yyyy}",
++                "",
++                $"Выполнено за день: {doneToday.Count}",
++            };
++            if (doneToday.Count > 0)
++                lines.AddRange(doneToday.Take(15)
++                    .Select(t => $"— #{t.Id} {t.Title} ({Assignee(t.AssignedToId, names)})"));
++
++            lines.Add("");
++            lines.Add($"Осталось к выполнению: {active.Count}");
++            lines.Add($"— Преподготовка: {prep}");
++            lines.Add($"— Выполнение: {exec}");
++            lines.Add($"— Тестирование: {test}");
++
++            lines.Add("");
++            lines.Add($"Подходят к дедлайну: {overdue.Count + dueToday.Count}");
+             if (overdue.Count > 0)
+             {
+-                lines.Add($"\n❗ Просрочено ({overdue.Count}):");
+-                lines.AddRange(overdue.Take(10).Select(t => $"• #{t.Id} {t.Title} — до {t.Deadline:dd.MM}"));
++                lines.Add($"Просрочено ({overdue.Count}):");
++                lines.AddRange(overdue.Take(15)
++                    .Select(t => $"— #{t.Id} {t.Title} — до {t.Deadline:dd.MM} ({Assignee(t.AssignedToId, names)})"));
+             }
+             if (dueToday.Count > 0)
+             {
+-                lines.Add($"\n📅 Сегодня ({dueToday.Count}):");
+-                lines.AddRange(dueToday.Take(10).Select(t => $"• #{t.Id} {t.Title}"));
++                lines.Add($"Сегодня ({dueToday.Count}):");
++                lines.AddRange(dueToday.Take(15)
++                    .Select(t => $"— #{t.Id} {t.Title} ({Assignee(t.AssignedToId, names)})"));
+             }
+             if (overdue.Count == 0 && dueToday.Count == 0)
+-                lines.Add($"\nАктивных задач: {active.Count}. Сроки на сегодня не горят.");
++                lines.Add("— сроки на сегодня не горят.");
+ 
+             return string.Join("\n", lines);
+         }
+ 
+-        private static string BuildReport(
+-            IEnumerable<(int Id, string Title, BoardTaskStatus Status, DateTime? Deadline)> tasks)
++        private static string BuildPersonalReport(List<BoardTaskStatus> statuses)
+         {
+-            var list = tasks.ToList();
+-            int prep = list.Count(t => t.Status == BoardTaskStatus.Preparaion);
+-            int exec = list.Count(t => t.Status == BoardTaskStatus.Execution);
+-            int test = list.Count(t => t.Status == BoardTaskStatus.Testing);
+-            int done = list.Count(t => t.Status == BoardTaskStatus.Done);
+-
+-            return "📊 *Ежедневный отчёт*\n" +
+-                   $"Всего задач: {list.Count}\n" +
+-                   $"• Преподготовка: {prep}\n" +
+-                   $"• Выполнение: {exec}\n" +
+-                   $"• Тестирование: {test}\n" +
+-                   $"• Готово: {done}";
++            int prep = statuses.Count(s => s == BoardTaskStatus.Preparaion);
++            int exec = statuses.Count(s => s == BoardTaskStatus.Execution);
++            int test = statuses.Count(s => s == BoardTaskStatus.Testing);
++            int done = statuses.Count(s => s == BoardTaskStatus.Done);
++
++            return "Ежедневная сводка по вашим задачам\n" +
++                   $"Всего: {statuses.Count}\n" +
++                   $"— Преподготовка: {prep}\n" +
++                   $"— Выполнение: {exec}\n" +
++                   $"— Тестирование: {test}\n" +
++                   $"— Готово: {done}";
+         }
+     }
+ }
+diff --git a/CAESAR.Server/Controllers/ProjectPagesController.cs b/CAESAR.Server/Controllers/ProjectPagesController.cs
+index b19739e..0f26955 100644
+--- a/CAESAR.Server/Controllers/ProjectPagesController.cs
++++ b/CAESAR.Server/Controllers/ProjectPagesController.cs
+@@ -1,6 +1,7 @@
+ ﻿using CAESAR.Server.Data;
+ using CAESAR.Server.DTOs;
+ using CAESAR.Server.Models;
++using CAESAR.Server.Services;
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using System.Security.Claims;
+@@ -14,10 +15,12 @@ namespace CAESAR.Server.Controllers
+     public class ProjectPagesController : ControllerBase
+     {
+         private readonly AppDbContext _context;
++        private readonly INotificationService _notificationService;
+ 
+-        public ProjectPagesController(AppDbContext context)
++        public ProjectPagesController(AppDbContext context, INotificationService notificationService)
+         {
+             _context = context;
++            _notificationService = notificationService;
+         }
+ 
+         [HttpPost]
+@@ -44,6 +47,27 @@ namespace CAESAR.Server.Controllers
+             _context.ProjectPages.Add(newPage);
+             await _context.SaveChangesAsync();
+ 
++            // Уведомляем супер-админов проекта (кроме создателя) о новой доске.
++            var adminIds = await _context.Members
++                .Where(m => m.ProjectId == dto.ProjectId
++                            && m.Role == (int)UserRole.GlobalAdmin
++                            && m.UserId != currentUserId)
++                .Select(m => m.UserId)
++                .ToListAsync();
++
++            if (adminIds.Count > 0)
++            {
++                var creator = await _context.Users.FindAsync(currentUserId);
++                var creatorName = creator?.UserName ?? "участник";
++                var message = "Новая доска в проекте\n" +
++                              $"«{newPage.Name}»\n" +
++                              $"Создал: {creatorName}";
++                foreach (var adminId in adminIds)
++                {
++                    try { await _notificationService.SendToUserAsync(adminId, message); }
++                    catch { /* best-effort */ }
++                }
++            }
+ 
+             return Ok(newPage);
+         }
+diff --git a/CAESAR.Server/Controllers/TasksController.cs b/CAESAR.Server/Controllers/TasksController.cs
+index 705731b..c30b2a0 100644
+--- a/CAESAR.Server/Controllers/TasksController.cs
++++ b/CAESAR.Server/Controllers/TasksController.cs
+@@ -172,6 +172,19 @@ namespace CAESAR.Server.Controllers
+             });
+             await _context.SaveChangesAsync();
+ 
++            // Уведомляем супер-админов проекта (роль GlobalAdmin) о новой задаче.
++            // Создателя не уведомляем — он и так знает. Доставка идёт только тем,
++            // у кого подключён канал (SendToUserAsync сам no-op при отсутствии канала).
++            await NotifyProjectAdminsAsync(
++                page.ProjectId,
++                exceptUserId: currentUserId,
++                buildMessage: creatorName =>
++                    "Новая задача в проекте\n" +
++                    $"#{newTask.Id} «{newTask.Title}»\n" +
++                    $"Доска: {page.Name}\n" +
++                    $"Создал: {creatorName}" +
++                    (newTask.Deadline is DateTime dl ? $"\nДедлайн: {dl:dd.MM.yyyy}" : ""));
++
+             return Ok(newTask);
+         }
+ 
+@@ -461,6 +474,29 @@ namespace CAESAR.Server.Controllers
+             return Ok(new { message = $"Задача {id} успешно удалена из системы" });
+         }
+ 
++        // Рассылает уведомление всем супер-админам (GlobalAdmin) проекта, кроме exceptUserId.
++        // buildMessage получает имя инициатора действия для подстановки в текст.
++        private async Task NotifyProjectAdminsAsync(int projectId, int exceptUserId, Func<string, string> buildMessage)
++        {
++            var adminIds = await _context.Members
++                .Where(m => m.ProjectId == projectId
++                            && m.Role == (int)UserRole.GlobalAdmin
++                            && m.UserId != exceptUserId)
++                .Select(m => m.UserId)
++                .ToListAsync();
++
++            if (adminIds.Count == 0) return;
++
++            var initiator = await _context.Users.FindAsync(exceptUserId);
++            var message = buildMessage(initiator?.UserName ?? "участник");
++
++            foreach (var adminId in adminIds)
++            {
++                try { await _notificationService.SendToUserAsync(adminId, message); }
++                catch { /* доставка best-effort: сбой канала не должен ронять запрос */ }
++            }
++        }
++
+         private static string GetStatusName(BoardTaskStatus status) => status switch
+         {
+             BoardTaskStatus.Preparaion => "Преподготовка",
+diff --git a/CAESAR.Server/Services/TelegramNotificationProvider.cs b/CAESAR.Server/Services/TelegramNotificationProvider.cs
+index ffb8447..4f5104e 100644
+--- a/CAESAR.Server/Services/TelegramNotificationProvider.cs
++++ b/CAESAR.Server/Services/TelegramNotificationProvider.cs
+@@ -35,6 +35,7 @@ namespace CAESAR.Server.Services
+             var client = _httpFactory.CreateClient();
+             var url = $"https://api.telegram.org/bot{token}/sendMessage";
+ 
++            // Первая попытка — с Markdown (жирный текст в интерактивных уведомлениях).
+             var payload = new
+             {
+                 chat_id = providerUserId,
+@@ -43,11 +44,29 @@ namespace CAESAR.Server.Services
+                 disable_web_page_preview = true
+             };
+ 
+-            using var resp = await client.PostAsJsonAsync(url, payload);
+-            if (!resp.IsSuccessStatusCode)
++            using (var resp = await client.PostAsJsonAsync(url, payload))
+             {
++                if (resp.IsSuccessStatusCode) return;
++
+                 var body = await resp.Content.ReadAsStringAsync();
+-                _logger.LogError("Telegram sendMessage {Status}: {Body}", resp.StatusCode, body);
++                _logger.LogWarning("Telegram sendMessage (Markdown) {Status}: {Body}. Повтор без разметки.",
++                    resp.StatusCode, body);
++            }
++
++            // Fallback: произвольный текст (заголовки задач могут содержать * _ [ ] и т.п.,
++            // из-за чего Markdown-парсер Telegram отдаёт 400). Шлём как обычный текст.
++            var plainPayload = new
++            {
++                chat_id = providerUserId,
++                text = message,
++                disable_web_page_preview = true
++            };
++
++            using var plainResp = await client.PostAsJsonAsync(url, plainPayload);
++            if (!plainResp.IsSuccessStatusCode)
++            {
++                var body = await plainResp.Content.ReadAsStringAsync();
++                _logger.LogError("Telegram sendMessage {Status}: {Body}", plainResp.StatusCode, body);
+             }
+         }
+     }
+diff --git a/bot/bot.py b/bot/bot.py
+index 4023209..d099289 100644
+--- a/bot/bot.py
++++ b/bot/bot.py
+@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
+ from aiogram.fsm.state import State, StatesGroup
+ from aiogram.fsm.storage.memory import MemoryStorage
+ from aiogram.types import (
++    BotCommand,
+     CallbackQuery,
+     InlineKeyboardButton,
+     InlineKeyboardMarkup,
+@@ -59,31 +60,88 @@ def _move_keyboard(task_id: int, current: int) -> InlineKeyboardMarkup:
+ # ---------------------------------------------------------------------------
+ # Базовые команды
+ # ---------------------------------------------------------------------------
++# ---------------------------------------------------------------------------
++# Меню бота (раздел 9: понятная навигация без эмодзи)
++# ---------------------------------------------------------------------------
++# Персистентный список команд (кнопка «Меню» рядом с полем ввода).
++BOT_COMMANDS = [
++    BotCommand(command="menu", description="Что умеет бот — список возможностей"),
++    BotCommand(command="tasks", description="Мои задачи по проектам"),
++    BotCommand(command="status", description="Карточка задачи по номеру + управление"),
++    BotCommand(command="new", description="Создать задачу"),
++    BotCommand(command="report", description="Сводка по статусам задач"),
++    BotCommand(command="link", description="Привязать аккаунт CAESAR по коду"),
++    BotCommand(command="unlink", description="Отвязать аккаунт"),
++    BotCommand(command="help", description="Краткая справка по командам"),
++]
++
++# Единый текст меню-путеводителя (без эмодзи).
++MENU_TEXT = (
++    "Меню CAESAR\n"
++    "\n"
++    "Я связываю Telegram с вашими досками CAESAR: показываю задачи, "
++    "двигаю их по колонкам, шлю уведомления и отвечаю на вопросы по проектам.\n"
++    "\n"
++    "Начало работы\n"
++    "/link КОД — привязать аккаунт (код берётся на сайте, кнопка «Подключить Telegram»)\n"
++    "/unlink — отвязать аккаунт\n"
++    "\n"
++    "Задачи\n"
++    "/tasks — все задачи, где вы автор или исполнитель, сгруппированы по проектам\n"
++    "/status ID — карточка одной задачи (статус, доска, исполнитель, дедлайн) с кнопками перемещения по колонкам\n"
++    "/new — создать задачу пошагово\n"
++    "\n"
++    "Аналитика\n"
++    "/report — сколько задач в каждой колонке: Преподготовка, Выполнение, Тестирование, Готово\n"
++    "\n"
++    "Уведомления приходят автоматически\n"
++    "— супер-админу проекта: о новых задачах и досках\n"
++    "— исполнителю: когда дедлайн сегодня или уже просрочен\n"
++    "— ежедневный отчёт: супер-админу по проекту, остальным — краткая сводка\n"
++    "\n"
++    "Вопрос своими словами\n"
++    "Напишите обычным текстом — отвечу ИИ по данным ваших проектов "
++    "(например: «что горит по срокам на этой неделе?»)."
++)
++
++
+ @dp.message(Command("start"))
+ async def cmd_start(message: Message):
+-    await message.answer(
+-        "Привет. Я ассистент CAESAR.\n\n"
+-        "1. На сайте CAESAR нажми «Подключить Telegram» — получишь код.\n"
+-        "2. Пришли его сюда: /link КОД\n\n"
+-        "После привязки:\n"
+-        "• пиши вопросы обычным текстом — отвечу ИИ по твоим задачам;\n"
+-        "• /tasks — список задач\n"
+-        "• /status ID — карточка задачи с кнопками управления\n"
+-        "• /report — сводка по статусам\n"
+-        "• /new — создать задачу\n"
+-        "• /help — помощь"
+-    )
++    linked = db.get_jwt(message.from_user.id) is not None
++    if linked:
++        await message.answer(
++            "С возвращением. Открой /menu — там все возможности. "
++            "Быстрые команды: /tasks, /new, /report."
++        )
++    else:
++        await message.answer(
++            "Привет. Я ассистент CAESAR.\n"
++            "\n"
++            "Чтобы начать:\n"
++            "1. На сайте CAESAR нажми «Подключить Telegram» — получишь код.\n"
++            "2. Пришли его сюда: /link КОД\n"
++            "\n"
++            "После привязки открой /menu — покажу, что умею."
++        )
++
++
++@dp.message(Command("menu"))
++async def cmd_menu(message: Message):
++    await message.answer(MENU_TEXT)
+ 
+ 
+ @dp.message(Command("help"))
+ async def cmd_help(message: Message):
+     await message.answer(
+         "Команды:\n"
++        "/menu — что умеет бот, с пояснениями\n"
+         "/tasks — все твои задачи\n"
+         "/status ID — задача по номеру + кнопки перемещения\n"
+         "/report — отчёт по статусам\n"
+         "/new — создать задачу\n"
+-        "/unlink — отвязать аккаунт\n\n"
++        "/link КОД — привязать аккаунт\n"
++        "/unlink — отвязать аккаунт\n"
++        "\n"
+         "Или просто задай вопрос текстом — отвечу по данным твоих проектов."
+     )
+ 
+@@ -141,7 +199,7 @@ async def cmd_tasks(message: Message):
+         tasks = proj.get("tasks", [])
+         if not tasks:
+             continue
+-        lines.append(f"📁 *{proj.get('name', 'Проект')}*")
++        lines.append(f"*{proj.get('name', 'Проект')}*")
+         for t in tasks:
+             st = STATUS_RU.get(NAME_TO_INT.get(t.get("status", ""), 0), t.get("status", ""))
+             dl = t.get("deadline")
+@@ -269,12 +327,12 @@ async def cmd_report(message: Message):
+                 total += 1
+ 
+     await message.answer(
+-        "📊 *Отчёт по задачам*\n"
++        "*Отчёт по задачам*\n"
+         f"Всего: {total}\n"
+-        f"• Преподготовка: {counts[1]}\n"
+-        f"• Выполнение: {counts[2]}\n"
+-        f"• Тестирование: {counts[3]}\n"
+-        f"• Готово: {counts[4]}",
++        f"— Преподготовка: {counts[1]}\n"
++        f"— Выполнение: {counts[2]}\n"
++        f"— Тестирование: {counts[3]}\n"
++        f"— Готово: {counts[4]}",
+         parse_mode="Markdown",
+     )
+ 
+@@ -364,6 +422,8 @@ async def on_question(message: Message):
+ 
+ async def main():
+     db.init()
++    # Регистрируем меню команд бота (кнопка «Меню» в интерфейсе Telegram).
++    await bot.set_my_commands(BOT_COMMANDS)
+     await dp.start_polling(bot)
+ 
+ 
+diff --git a/caesar.client/src/pages/Landing/Landing.css b/caesar.client/src/pages/Landing/Landing.css
+index 03cf3a6..6090830 100644
+--- a/caesar.client/src/pages/Landing/Landing.css
++++ b/caesar.client/src/pages/Landing/Landing.css
+@@ -258,6 +258,16 @@ body {
+   animation: fadeSlideUpFrieze 1.5s ease-out 0.6s forwards;
+ }
+ 
++/* Модификатор: меандр поднят на место убранных Цезарей.
++   Небольшой верхний отступ даёт воздух под геро-секцией,
++   не затрагивая масштаб фоновой картинки самого героя. */
++.neon-frieze--raised {
++  margin-top: 32px;
++}
++@media (min-width: 1024px) {
++  .neon-frieze--raised { margin-top: 40px; }
++}
++
+ @keyframes fadeSlideUpFrieze {
+   0% { opacity: 0; transform: translateY(20px); }
+   100% { opacity: 1; transform: translateY(0); }
+diff --git a/caesar.client/src/pages/Landing/Landing.tsx b/caesar.client/src/pages/Landing/Landing.tsx
+index 4c956c8..c91df6e 100644
+--- a/caesar.client/src/pages/Landing/Landing.tsx
++++ b/caesar.client/src/pages/Landing/Landing.tsx
+@@ -7,14 +7,6 @@ interface LandingProps {
+   onNavigate: (page: string) => void;
+ }
+ 
+-const CARDS = [
+-  { id: 'red', combo: 'combo-red.png', color: '#ff4d4d' },
+-  { id: 'yellow', combo: 'combo-yellow.png', color: '#ffd700' },
+-  { id: 'green', combo: 'combo-green.png', color: '#22c55e' },
+-  { id: 'blue', combo: 'combo-blue.png', color: '#0ea5e9' },
+-  { id: 'purple', combo: 'combo-purple.png', color: '#a855f7' },
+-];
+-
+ export const Landing = ({ onNavigate }: LandingProps) => {
+   return (
+     <div className="landing-page">
+@@ -46,25 +38,9 @@ export const Landing = ({ onNavigate }: LandingProps) => {
+       {/* ОСНОВНОЙ КОНТЕНТ */}
+       <div className="landing-main">
+         <div className="landing-main__inner">
+-          
+-          {/* ЦЕЗАРИ (подняты на 2px: -62 → -64) */}
+-          <div className="landing-cards-wrapper">
+-            <div className="landing-cards">
+-              {CARDS.map((item) => (
+-                <div key={item.id} className="landing-card-group">
+-                  <img 
+-                    src={`/attachments/${item.combo}`} 
+-                    alt="" 
+-                    className="landing-card-group__combo" 
+-                    style={{ marginTop: '-64px' }} 
+-                  />
+-                </div>
+-              ))}
+-            </div>
+-          </div>
+ 
+-          {/* БЕГУЩИЙ МЕАНДР */}
+-          <div className="neon-frieze neon-show">
++          {/* БЕГУЩИЙ МЕАНДР (поднят на место убранных Цезарей) */}
++          <div className="neon-frieze neon-show neon-frieze--raised">
+             <div className="neon-frieze__fade-container">
+               <div className="neon-frieze__top-line"></div>
+               <div className="neon-frieze__track">
+diff --git a/caesar.client/src/pages/Projects/Projects.css b/caesar.client/src/pages/Projects/Projects.css
+index 35763cb..950883a 100644
+--- a/caesar.client/src/pages/Projects/Projects.css
++++ b/caesar.client/src/pages/Projects/Projects.css
+@@ -159,26 +159,63 @@
+ }
+ .project-card__progress-track {
+   position: relative;
+-  height: 6px;
++  height: 8px;
+   border-radius: var(--r-pill);
+-  background: var(--c-surface-3);
++  /* Углублённый жёлоб: тёмная подложка + лёгкая внутренняя тень для объёма */
++  background:
++    linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.015));
+   border: 1px solid var(--c-border-2);
++  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+   overflow: hidden;
+ }
++/* Вехи 25 / 50 / 75 % — тонкие засечки прямо в жёлобе */
++.project-card__progress-track::before {
++  content: '';
++  position: absolute;
++  inset: 0;
++  pointer-events: none;
++  background-image: linear-gradient(
++    90deg,
++    transparent 0,
++    transparent calc(25% - 1px), rgba(255, 255, 255, 0.10) calc(25% - 1px), rgba(255, 255, 255, 0.10) 25%,
++    transparent 25%,
++    transparent calc(50% - 1px), rgba(255, 255, 255, 0.10) calc(50% - 1px), rgba(255, 255, 255, 0.10) 50%,
++    transparent 50%,
++    transparent calc(75% - 1px), rgba(255, 255, 255, 0.10) calc(75% - 1px), rgba(255, 255, 255, 0.10) 75%,
++    transparent 75%
++  );
++}
+ .project-card__progress-fill {
+   position: relative;
+   height: 100%;
+   border-radius: var(--r-pill);
+-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.45) 0%, #ffffff 100%);
+-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
++  background: linear-gradient(90deg, rgba(255, 255, 255, 0.35) 0%, #ffffff 100%);
++  box-shadow:
++    0 0 12px rgba(255, 255, 255, 0.28),
++    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+   transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+   min-width: 0;
+ }
++/* Яркий ведущий край — «голова» заполнения */
++.project-card__progress-fill::before {
++  content: '';
++  position: absolute;
++  top: 50%;
++  right: 0;
++  width: 6px;
++  height: 6px;
++  border-radius: 50%;
++  transform: translate(50%, -50%);
++  background: #ffffff;
++  box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.55);
++  opacity: 0.9;
++}
+ /* Лёгкий «бегущий блик» по заполненной части */
+ .project-card__progress-fill::after {
+   content: '';
+   position: absolute;
+   inset: 0;
++  border-radius: var(--r-pill);
+   background: linear-gradient(
+     90deg,
+     transparent 0%,
+@@ -188,10 +225,21 @@
+   transform: translateX(-100%);
+   animation: projectProgressShine 2.8s ease-in-out infinite;
+ }
++/* Пороговая подсветка: чем ближе к финишу, тем теплее свечение */
++.project-card__progress-fill.is-high {
++  background: linear-gradient(90deg, rgba(74, 222, 128, 0.35) 0%, #d1fae5 100%);
++  box-shadow: 0 0 12px rgba(74, 222, 128, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.6);
++}
+ .project-card__progress-fill.is-complete {
+   background: linear-gradient(90deg, var(--c-success, #22c55e) 0%, #4ade80 100%);
+-  box-shadow: 0 0 14px rgba(34, 197, 94, 0.4);
++  box-shadow: 0 0 16px rgba(34, 197, 94, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.5);
++}
++.project-card__progress-fill.is-complete::before {
++  background: #eafff1;
++  box-shadow: 0 0 10px 2px rgba(74, 222, 128, 0.7);
+ }
++/* На 0% ведущую точку прячем, чтобы не висела у левого края */
++.project-card__progress-fill.is-empty::before { display: none; }
+ 
+ @keyframes projectProgressShine {
+   0% { transform: translateX(-100%); }
+diff --git a/caesar.client/src/pages/Projects/Projects.tsx b/caesar.client/src/pages/Projects/Projects.tsx
+index bc0384d..72c11ab 100644
+--- a/caesar.client/src/pages/Projects/Projects.tsx
++++ b/caesar.client/src/pages/Projects/Projects.tsx
+@@ -125,7 +125,11 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
+                     aria-valuemax={100}
+                   >
+                     <div
+-                      className={`project-card__progress-fill${percent === 100 ? ' is-complete' : ''}`}
++                      className={
++                        'project-card__progress-fill' +
++                        (percent === 0 ? ' is-empty' : '') +
++                        (percent === 100 ? ' is-complete' : percent >= 75 ? ' is-high' : '')
++                      }
+                       style={{ width: `${percent}%` }}
+                     />
+                   </div>
+diff --git a/caesar.client/src/pages/Reports/Reports.css b/caesar.client/src/pages/Reports/Reports.css
+index 69badbf..f77ab12 100644
+--- a/caesar.client/src/pages/Reports/Reports.css
++++ b/caesar.client/src/pages/Reports/Reports.css
+@@ -73,23 +73,53 @@
+   color: var(--c-text-muted);
+   margin-bottom: 8px;
+ }
+-.rep-bar__count { color: var(--c-text); font-weight: 600; }
++.rep-bar__count { color: var(--c-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+ .rep-bar__track {
+-  height: 8px;
+-  background: var(--c-surface-3);
++  position: relative;
++  height: 10px;
++  background: linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.015));
++  border: 1px solid var(--c-border-2);
+   border-radius: var(--r-pill);
++  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+   overflow: hidden;
+ }
+ .rep-bar__fill {
++  position: relative;
+   height: 100%;
+   border-radius: var(--r-pill);
+   background: var(--c-text-dim);
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+   transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+ }
+-.rep-bar__fill.status-preparation { background: var(--c-status-prep); }
+-.rep-bar__fill.status-execution   { background: var(--c-status-exec); }
+-.rep-bar__fill.status-testing     { background: var(--c-status-test); }
+-.rep-bar__fill.status-done        { background: var(--c-status-done); }
++/* Мягкий верхний блик поверх цвета статуса — придаёт объём */
++.rep-bar__fill::after {
++  content: '';
++  position: absolute;
++  inset: 0;
++  border-radius: var(--r-pill);
++  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 60%);
++  pointer-events: none;
++}
++.rep-bar__fill.status-preparation {
++  background: linear-gradient(90deg, rgba(148, 163, 184, 0.55), var(--c-status-prep));
++  box-shadow: 0 0 10px rgba(148, 163, 184, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.35);
++}
++.rep-bar__fill.status-execution {
++  background: linear-gradient(90deg, rgba(96, 165, 250, 0.55), var(--c-status-exec));
++  box-shadow: 0 0 10px rgba(96, 165, 250, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
++}
++.rep-bar__fill.status-testing {
++  background: linear-gradient(90deg, rgba(192, 132, 252, 0.55), var(--c-status-test));
++  box-shadow: 0 0 10px rgba(192, 132, 252, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
++}
++.rep-bar__fill.status-done {
++  background: linear-gradient(90deg, rgba(74, 222, 128, 0.55), var(--c-status-done));
++  box-shadow: 0 0 12px rgba(74, 222, 128, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.35);
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .rep-bar__fill { transition: none; }
++}
+ 
+ .rep-empty { color: var(--c-text-faint); font-size: 14px; }
+ .rep-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }

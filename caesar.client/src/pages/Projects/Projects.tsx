@@ -125,7 +125,11 @@ export const Projects = ({ onSelectProject, onCreateProject }: ProjectsProps) =>
                     aria-valuemax={100}
                   >
                     <div
-                      className={`project-card__progress-fill${percent === 100 ? ' is-complete' : ''}`}
+                      className={
+                        'project-card__progress-fill' +
+                        (percent === 0 ? ' is-empty' : '') +
+                        (percent === 100 ? ' is-complete' : percent >= 75 ? ' is-high' : '')
+                      }
                       style={{ width: `${percent}%` }}
                     />
                   </div>
